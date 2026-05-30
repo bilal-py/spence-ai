@@ -40,7 +40,7 @@ namespace SpenceAI.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Categories");
+                    b.ToTable("Categories", (string)null);
                 });
 
             modelBuilder.Entity("SpenceAI.Domain.Entities.Expense", b =>
@@ -69,7 +69,7 @@ namespace SpenceAI.Infrastructure.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("Expenses");
+                    b.ToTable("Expenses", (string)null);
                 });
 
             modelBuilder.Entity("SpenceAI.Domain.Entities.Expense", b =>

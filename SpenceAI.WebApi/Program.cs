@@ -1,20 +1,19 @@
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using SpenceAI.Application.Common.Interfaces;
 using SpenceAI.Infrastructure.Data;
 using SpenceAI.Infrastructure.Data.Repositories;
-using SpenceAI.WebApi.Configuration;
 using SpenceAI.WebApi.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = NeonConnection.Resolve(builder.Configuration)
-    ?? throw new InvalidOperationException(
-        "No database connection configured. Add ConnectionStrings:DefaultConnection in user secrets, " +
-        "appsettings.Development.json, or set the DATABASE_URL environment variable. " +
-        "See appsettings.Development.example.json and https://neon.tech/docs/guides/dotnet-entity-framework");
-
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+});
 
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 

@@ -60,3 +60,18 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+SpenceAI.WebApi/appsettings.Development.json
+
+
+# --- ADD THESE MISSING ENTRIES ---
+
+# Visual Studio User & Cache Files (Critical)
+*.csproj.user
+.vs/
+**/vs/VSWorkspaceState.json
+**/vs/*.vsidx
+*.suo
+DocumentLayout.json
+
+# Solution Database (VS 2022/2026 specific)
+*.slnx.sqlite

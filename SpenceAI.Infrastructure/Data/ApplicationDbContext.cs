@@ -10,30 +10,22 @@ public class ApplicationDbContext : DbContext
     {
     }
 
-    public DbSet<Expense> Expenses { get; set; }
-    public DbSet<Category> Categories { get; set; }
+    public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<Category> Categories => Set<Category>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<Category>(entity =>
-        {
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.Name).IsRequired();
-            entity.Property(c => c.ColorCode).IsRequired();
-            entity.HasMany(c => c.Expenses)
-                .WithOne(e => e.Category)
-                .HasForeignKey(e => e.CategoryId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
         modelBuilder.Entity<Expense>(entity =>
         {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Amount).HasPrecision(18, 2);
-            entity.Property(e => e.Description).IsRequired();
-            entity.Property(e => e.Date).IsRequired();
+            entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
         });
+
+        modelBuilder.Entity<Category>()
+            .HasMany(c => c.Expenses)
+            .WithOne(e => e.Category)
+            .HasForeignKey(e => e.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
