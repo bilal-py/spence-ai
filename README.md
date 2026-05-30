@@ -77,9 +77,19 @@ git clone https://github.com/yourusername/spence-ai.git
 cd spence-ai
 ```
 
-**2. Configure environment secrets:**
+**2. Create a free Neon database:**
 
-Create an `appsettings.Development.json` file inside the `SpenceAI.WebApi` directory containing your free Neon Postgres connection string and your Google Gemini API token.
+1. Sign up at [neon.tech](https://neon.tech/) and create a project (default database: `neondb`).
+2. In the Neon Console, open **Connect** → choose **.NET** → copy the **connection string** (use the **direct** endpoint for migrations, not the pooler).
+3. Store it locally (never commit credentials):
+
+```bash
+cd SpenceAI.WebApi
+copy appsettings.Development.example.json appsettings.Development.json
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=ep-....neon.tech;Database=neondb;Username=...;Password=...;SSL Mode=Require"
+```
+
+Alternatively set `DATABASE_URL` to the `postgresql://...` string from Neon (also supported).
 
 **3. Apply EF Core database migrations:**
 
