@@ -1,0 +1,6 @@
+@SpenceAI.WebApi_HostAddress = http://localhost:5093
+
+GET {{SpenceAI.WebApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

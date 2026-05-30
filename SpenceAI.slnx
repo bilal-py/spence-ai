@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SpenceAI.Application/SpenceAI.Application.csproj" />
+  <Project Path="SpenceAI.Domain/SpenceAI.Domain.csproj" />
+  <Project Path="SpenceAI.Infrastructure/SpenceAI.Infrastructure.csproj" />
+  <Project Path="SpenceAI.WebApi/SpenceAI.WebApi.csproj" />
+</Solution>

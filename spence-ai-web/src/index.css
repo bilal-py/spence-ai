@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --dashboard-bg: #f1f5f9;
+  --dashboard-panel: #ffffff;
+  --dashboard-border: #e2e8f0;
+  --dashboard-text: #0f172a;
+  --dashboard-muted: #64748b;
+}
+
+@layer base {
+  body {
+    @apply min-h-screen font-sans text-slate-900 antialiased;
+    background-color: var(--dashboard-bg);
+  }
+}
+
+@layer components {
+  .dashboard-shell {
+    @apply min-h-screen bg-slate-100;
+    background-image: radial-gradient(
+        circle at top left,
+        rgb(226 232 240 / 0.9),
+        transparent 45%
+      ),
+      radial-gradient(
+        circle at bottom right,
+        rgb(241 245 249 / 0.95),
+        transparent 50%
+      );
+    background-color: var(--dashboard-bg);
+  }
+
+  .dashboard-panel {
+    @apply rounded-xl border border-slate-200 bg-white shadow-panel;
+    background-color: var(--dashboard-panel);
+    border-color: var(--dashboard-border);
+  }
+
+  .metric-card {
+    @apply dashboard-panel p-5 transition-shadow hover:shadow-md;
+  }
+}
