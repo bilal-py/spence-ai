@@ -1,14 +1,26 @@
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using SpenceAI.Application.Common.Interfaces;
+using SpenceAI.Application.Services;
 using SpenceAI.Infrastructure.Data;
 using SpenceAI.Infrastructure.Data.Repositories;
+using SpenceAI.Infrastructure.Services;
 using SpenceAI.WebApi.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddScoped<IApplicationDbContext>(provider =>
+    provider.GetRequiredService<ApplicationDbContext>());
+
+builder.Services.AddHttpClient();
+builder.Services.AddHttpClient<IAiCategorizationService, GeminiCategorizationService>();
+builder.Services.AddScoped<IPdfExtractionService, PdfExtractionService>();
+builder.Services.AddScoped<ExpenseProcessingService>();
+
+builder.Services.AddControllers();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -49,6 +61,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+app.MapControllers();
 app.MapExpenseEndpoints();
 
 app.Run();

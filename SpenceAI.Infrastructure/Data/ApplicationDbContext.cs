@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using SpenceAI.Application.Common.Interfaces;
 using SpenceAI.Domain.Entities;
 
 namespace SpenceAI.Infrastructure.Data;
 
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext : DbContext, IApplicationDbContext
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)

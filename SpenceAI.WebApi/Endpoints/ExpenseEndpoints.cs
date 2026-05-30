@@ -11,7 +11,6 @@ public static class ExpenseEndpoints
 
         group.MapGet("/", GetExpenses);
         group.MapGet("/summary", GetSummary);
-        group.MapPost("/upload-pdf", UploadPdf);
 
         return group;
     }
@@ -60,28 +59,6 @@ public static class ExpenseEndpoints
             byCategory);
 
         return Results.Ok(response);
-    }
-
-    private static Task<IResult> UploadPdf(IFormFile? file)
-    {
-        if (file is null || file.Length == 0)
-        {
-            return Task.FromResult(Results.BadRequest(new { message = "A PDF file is required." }));
-        }
-
-        if (!file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
-            && file.ContentType is not "application/pdf")
-        {
-            return Task.FromResult(Results.BadRequest(new { message = "Only PDF files are accepted." }));
-        }
-
-        // PDF parsing and AI categorization will be wired in a later phase.
-        return Task.FromResult(Results.Ok(new
-        {
-            processedCount = 0,
-            expenses = Array.Empty<Expense>(),
-            message = "PDF received. Full parsing pipeline is not yet enabled.",
-        }));
     }
 
     private static List<int>? ParseCategoryIds(string? categoryIds)
