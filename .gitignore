@@ -79,3 +79,9 @@ DocumentLayout.json
 # SQLite database files
 *.db
 *.db-journal
+
+# Application settings (avoid committing sensitive configuration)
+appsettings.json
+**/appsettings.json
+!**/appsettings.example.json
+!**/appsettings.Development.example.json

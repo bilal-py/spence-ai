@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 export default function Settings() {
   const [storageMode, setStorageMode] = useState('Local');
-  const [aiEngine, setAiEngine] = useState('Gemini');
+  const [selectedAiProvider, setSelectedAiProvider] = useState('Gemini');
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,8 +23,9 @@ export default function Settings() {
         const data = await response.json();
         if (!cancelled) {
           setStorageMode(data.storageMode || 'Local');
-          setAiEngine(data.aiEngine || 'Gemini');
-          setApiKey(data.apiKey || '');
+          setSelectedAiProvider(data.selectedAiProvider || 'Gemini');
+          // The API returns an encrypted key; don't prefill the input with encrypted data.
+          setApiKey('');
         }
       } catch (err) {
         if (!cancelled) {
@@ -49,6 +50,21 @@ export default function Settings() {
     setSaving(true);
     setError(null);
 
+    // Client-side validation to match backend expectations
+    const validStorage = ['Local', 'Cloud'];
+    const validProviders = ['Gemini', 'Ollama'];
+
+    if (!validStorage.includes(storageMode)) {
+      setError('Invalid storage mode selected. Choose Local or Cloud.');
+      setSaving(false);
+      return;
+    }
+
+    if (!validProviders.includes(selectedAiProvider)) {
+      setError('Invalid AI provider selected. Choose Gemini or Ollama.');
+      setSaving(false);
+      return;
+    }
     try {
       const response = await fetch('http://localhost:5234/api/settings/update', {
         method: 'POST',
@@ -56,10 +72,10 @@ export default function Settings() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          storageMode,
-          aiEngine,
-          apiKey,
-        }),
+            storageMode,
+            selectedAiProvider,
+            apiKey,
+          }),
       });
 
       if (!response.ok) {
@@ -128,8 +144,8 @@ export default function Settings() {
                 AI Engine
               </label>
               <select
-                value={aiEngine}
-                onChange={(e) => setAiEngine(e.target.value)}
+                value={selectedAiProvider}
+                onChange={(e) => setSelectedAiProvider(e.target.value)}
                 className="w-full px-4 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 disabled={saving}
               >

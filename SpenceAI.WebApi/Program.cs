@@ -36,6 +36,11 @@ builder.Services.AddScoped<IApplicationDbContext>(provider =>
 builder.Services.AddHttpClient();
 
 builder.Services.AddHttpClient<IAiCategorizationService, GeminiCategorizationService>();
+// Register the new provider-agnostic AI engine and factory
+builder.Services.AddScoped<SpenceAI.Infrastructure.Services.GeminiService>();
+builder.Services.AddScoped<SpenceAI.Application.Common.Interfaces.IAiEngineService>(provider =>
+    provider.GetRequiredService<SpenceAI.Infrastructure.Services.GeminiService>());
+builder.Services.AddScoped<SpenceAI.Application.Common.Interfaces.IAiEngineFactory, SpenceAI.Infrastructure.Factories.AiEngineFactory>();
 
 builder.Services.AddScoped<IPdfExtractionService, PdfExtractionService>();
 
