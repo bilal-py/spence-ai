@@ -75,3 +75,7 @@ DocumentLayout.json
 
 # Solution Database (VS 2022/2026 specific)
 *.slnx.sqlite
+
+# SQLite database files
+*.db
+*.db-journal

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using SpenceAI.Application.Services;
 using SpenceAI.Infrastructure.Services;
+using SpenceAI.Application.Common.Interfaces;
 
 namespace SpenceAI.WebApi.Controllers;
 

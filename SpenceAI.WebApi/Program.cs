@@ -34,11 +34,17 @@ builder.Services.AddScoped<IApplicationDbContext>(provider =>
     provider.GetRequiredService<ApplicationDbContext>());
 
 builder.Services.AddHttpClient();
+
 builder.Services.AddHttpClient<IAiCategorizationService, GeminiCategorizationService>();
+
 builder.Services.AddScoped<IPdfExtractionService, PdfExtractionService>();
-builder.Services.AddScoped<IEncryptionService, EncryptionService>; // Changed to scoped
+
+builder.Services.AddScoped<IEncryptionService, EncryptionService>();
+
 builder.Services.AddScoped<SettingsService>();
-builder.Services.AddScoped<ISyncEngineService, SyncEngineService>; // Added SyncEngineService
+
+builder.Services.AddScoped<ISyncEngineService, SyncEngineService>();
+
 builder.Services.AddScoped<ExpenseProcessingService>();
 
 builder.Services.AddControllers();
@@ -55,8 +61,10 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
         policy
             .WithOrigins(
-                "http://localhost:5173",
-                "http://127.0.0.1:5173")
+                        "http://localhost:5173",
+                        "http://127.0.0.1:5173",
+                        "http://localhost:5174",
+                        "http://127.0.0.1:5174")
             .AllowAnyHeader()
             .AllowAnyMethod());
 });

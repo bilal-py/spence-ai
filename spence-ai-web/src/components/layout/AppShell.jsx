@@ -4,6 +4,7 @@ const navItems = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/upload', label: 'Upload PDF' },
   { to: '/expenses', label: 'Expenses' },
+  { to: '/settings', label: 'Settings' },
 ];
 
 function navClassName({ isActive }) {
