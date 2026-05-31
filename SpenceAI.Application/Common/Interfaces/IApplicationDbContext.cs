@@ -7,5 +7,6 @@ public interface IApplicationDbContext
 {
     DbSet<Category> Categories { get; }
     DbSet<Expense> Expenses { get; }
+    DbSet<AppSettings> AppSettings { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -13,6 +13,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<AppSettings> AppSettings => Set<AppSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -20,13 +21,18 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
         modelBuilder.Entity<Expense>(entity =>
         {
-            entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
+            if (Database.IsNpgsql())
+            {
+                entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
+            }
         });
 
-        modelBuilder.Entity<Category>()
-            .HasMany(c => c.Expenses)
-            .WithOne(e => e.Category)
-            .HasForeignKey(e => e.CategoryId)
-            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Category>(entity =>
+        {
+            entity.HasMany(c => c.Expenses)
+                .WithOne(e => e.Category)
+                .HasForeignKey(e => e.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 }

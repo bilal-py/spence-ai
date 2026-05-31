@@ -8,4 +8,7 @@ public class Expense
     public string Description { get; set; } = string.Empty;
     public int CategoryId { get; set; }
     public Category? Category { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public bool IsSynced { get; set; } = false;
+    public string? CloudId { get; set; }
 }
