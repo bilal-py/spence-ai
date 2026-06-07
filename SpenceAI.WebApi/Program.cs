@@ -38,6 +38,16 @@ builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<IAiCategorizationService, GeminiCategorizationService>();
 // Register the new provider-agnostic AI engine and factory
 builder.Services.AddScoped<SpenceAI.Infrastructure.Services.GeminiService>();
+// Replace your old OllamaService registration with this:
+builder.Services.AddHttpClient<SpenceAI.Infrastructure.Services.OllamaService>(client =>
+{
+    // Give your local machine up to 5 minutes to complete heavy local AI extraction
+    client.Timeout = TimeSpan.FromMinutes(5);
+});
+
+// Keep this factory mapping right below it as is:
+builder.Services.AddScoped<SpenceAI.Application.Common.Interfaces.IAiEngineService>(provider =>
+    provider.GetRequiredService<SpenceAI.Infrastructure.Services.OllamaService>());
 builder.Services.AddScoped<SpenceAI.Application.Common.Interfaces.IAiEngineService>(provider =>
     provider.GetRequiredService<SpenceAI.Infrastructure.Services.GeminiService>());
 builder.Services.AddScoped<SpenceAI.Application.Common.Interfaces.IAiEngineFactory, SpenceAI.Infrastructure.Factories.AiEngineFactory>();
@@ -60,6 +70,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 
 builder.Services.AddCors(options =>
 {

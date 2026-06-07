@@ -19,6 +19,7 @@ public class AiEngineFactory : IAiEngineFactory
         return providerName.ToLower() switch
         {
             "gemini" => (IAiEngineService)_serviceProvider.GetRequiredService(typeof(GeminiService)),
+            "ollama" => (IAiEngineService)_serviceProvider.GetRequiredService<OllamaService>(),
             _ => throw new NotSupportedException($"AI Provider '{providerName}' is not supported.")
         };
     }

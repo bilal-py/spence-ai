@@ -69,6 +69,22 @@ public class GeminiService : IAiEngineService
         catch (JsonException ex)
         {
             _logger.LogError(ex, "Failed to deserialize Gemini AI text. Raw AI text: {AiText}", aiText);
+            // Try to extract a JSON array from the AI text (strip surrounding commentary or fences)
+            var jsonArray = TryExtractJsonArray(aiText);
+            if (!string.IsNullOrWhiteSpace(jsonArray))
+            {
+                try
+                {
+                    var expenses = JsonSerializer.Deserialize<List<ExtractedExpenseDto>>(jsonArray, JsonOptions);
+                    return expenses ?? new List<ExtractedExpenseDto>();
+                }
+                catch (JsonException ex2)
+                {
+                    _logger.LogError(ex2, "Deserialization of extracted JSON failed. Extracted JSON: {Json}", jsonArray);
+                    throw new InvalidOperationException("Failed to deserialize extracted JSON from Gemini response.", ex2);
+                }
+            }
+
             throw new InvalidOperationException("Failed to deserialize Gemini response into a list of expenses.", ex);
         }
     }
@@ -134,5 +150,19 @@ public class GeminiService : IAiEngineService
         }
 
         return textBuilder.ToString().Trim();
+    }
+
+    private static string TryExtractJsonArray(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+        var start = text.IndexOf('[');
+        var end = text.LastIndexOf(']');
+        if (start >= 0 && end > start)
+        {
+            return text.Substring(start, end - start + 1);
+        }
+
+        return string.Empty;
     }
 }

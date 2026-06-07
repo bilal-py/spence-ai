@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SpenceAI.Application.Services;
+using SpenceAI.Application.Common.Interfaces;
 
 namespace SpenceAI.WebApi.Controllers;
 
@@ -8,10 +9,12 @@ namespace SpenceAI.WebApi.Controllers;
 public class ExpensesController : ControllerBase
 {
     private readonly ExpenseProcessingService _expenseProcessingService;
+    private readonly IExpenseRepository _expenseRepository;
 
-    public ExpensesController(ExpenseProcessingService expenseProcessingService)
+    public ExpensesController(ExpenseProcessingService expenseProcessingService, IExpenseRepository expenseRepository)
     {
         _expenseProcessingService = expenseProcessingService;
+        _expenseRepository = expenseRepository;
     }
 
     [HttpPost("upload-pdf")]
@@ -28,9 +31,19 @@ public class ExpensesController : ControllerBase
             return BadRequest(new { message = "Only PDF files are accepted." });
         }
 
-        await using var stream = file.OpenReadStream();
-        await _expenseProcessingService.ProcessPdfUploadAsync(stream, cancellationToken);
+        try
+        {
+            using var memoryStream = new MemoryStream();
+            await file.CopyToAsync(memoryStream, cancellationToken);
+            memoryStream.Position = 0; // Reset position to the beginning
 
-        return Ok(new { message = "PDF processed successfully." });
+            await _expenseProcessingService.ProcessPdfUploadAsync(memoryStream, cancellationToken);
+            return Ok(new { message = "PDF processed successfully." });
+        }
+        catch (Exception ex)
+        {
+            // Force the real error text out to the console/browser response
+            return StatusCode(500, new { message = "An error occurred while processing the PDF.", details = ex.Message, stackTrace = ex.StackTrace });
+        }
     }
 }

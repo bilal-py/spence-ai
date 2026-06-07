@@ -78,4 +78,11 @@ export const api = {
       });
     },
   },
+
+  categories: {
+    async getAll() {
+      const url = `${baseUrl}/categories`;
+      return request(url);
+    },
+  },
 };

@@ -31,7 +31,7 @@ public class GeminiCategorizationService : IAiCategorizationService
         List<string> existingCategories)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rawText);
-        existingCategories ??= [];
+        existingCategories ??= new List<string>();
 
         var apiKey = _configuration["GeminiSettings:ApiKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -76,13 +76,26 @@ public class GeminiCategorizationService : IAiCategorizationService
         try
         {
             var expenses = JsonSerializer.Deserialize<List<ExtractedExpenseDto>>(aiText, JsonOptions);
-            return expenses ?? [];
+            return expenses ?? new List<ExtractedExpenseDto>();
         }
-        catch (JsonException ex)
+        catch (JsonException)
         {
-            throw new InvalidOperationException(
-                $"Failed to deserialize Gemini response into a list of expenses. Raw AI text: {aiText}",
-                ex);
+            // Attempt a best-effort extraction of a JSON array from the AI text
+            var jsonArray = TryExtractJsonArray(aiText);
+            if (!string.IsNullOrWhiteSpace(jsonArray))
+            {
+                try
+                {
+                    var expenses = JsonSerializer.Deserialize<List<ExtractedExpenseDto>>(jsonArray, JsonOptions);
+                    return expenses ?? new List<ExtractedExpenseDto>();
+                }
+                catch (JsonException ex2)
+                {
+                    throw new InvalidOperationException($"Failed to deserialize extracted JSON from Gemini response. Extracted JSON: {jsonArray}", ex2);
+                }
+            }
+
+            throw new InvalidOperationException($"Failed to deserialize Gemini response into a list of expenses. Raw AI text: {aiText}");
         }
     }
 
@@ -153,5 +166,19 @@ public class GeminiCategorizationService : IAiCategorizationService
         }
 
         return textBuilder.ToString().Trim();
+    }
+
+    private static string TryExtractJsonArray(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+        var start = text.IndexOf('[');
+        var end = text.LastIndexOf(']');
+        if (start >= 0 && end > start)
+        {
+            return text.Substring(start, end - start + 1);
+        }
+
+        return string.Empty;
     }
 }
