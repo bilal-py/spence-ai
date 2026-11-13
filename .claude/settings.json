@@ -1,0 +1,38 @@
+{
+  "application": {
+    "permissions": {
+      "allow": [
+        "Bash(curl -s http://localhost:5234/swagger/v1/swagger.json)",
+        "Bash(netstat -ano)",
+        "Bash(findstr :5234)",
+        "Bash(findstr :5000)",
+        "Bash(curl -s http://localhost:5000)",
+        "Bash(dotnet run *)",
+        "Read(//c/Users/bilal/source/repos/**)",
+        "Bash(dotnet build *)",
+        "Bash(dotnet ef migrations *)",
+        "Bash(dotnet ef database *)",
+        "Bash(curl -s http://localhost:5000/swagger/v1/swagger.json)",
+        "Bash(curl -s http://localhost:5000/swagger/index.html)",
+        "Bash(curl *)",
+        "Bash(TaskStop bl2zy4f1n *)",
+        "Bash(taskkill /F /IM dotnet.exe)",
+        "Bash(taskkill *)",
+        "Bash(git rm *)"
+      ]
+    }
+  },
+  "general": {
+    "currency": {
+      "options": [
+        "USD",
+        "INR",
+        "MAD",
+        "SAR",
+        "EUR",
+        "TRY"
+      ],
+      "selected": "USD"
+    }
+  }
+}

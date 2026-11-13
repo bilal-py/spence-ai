@@ -1,0 +1,245 @@
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { clsx } from 'clsx';
+import { ArrowLeft, LoaderCircle, Wand2 } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
+import { CategorySelect } from '../components/CategorySelect';
+import { useToast } from '../components/Toast';
+import { Button, Empty, ErrorNote, Spinner } from '../components/ui';
+import { api, type StagedRow, type TransactionType } from '../lib/api';
+import { money } from '../lib/format';
+import { useCategories, useCurrency, useInvalidateMoney } from '../lib/hooks';
+
+export default function ImportReview() {
+  const { id = '' } = useParams();
+  const batch = useQuery({
+    queryKey: ['import', id],
+    queryFn: () => api.imports.get(id),
+    refetchInterval: (q) => (q.state.data?.status === 'Queued' || q.state.data?.status === 'Processing' ? 2000 : false),
+  });
+
+  const back = (
+    <Link to="/import" className="mb-6 inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink">
+      <ArrowLeft className="size-4" aria-hidden /> All imports
+    </Link>
+  );
+
+  if (batch.isPending) return <>{back}<Spinner /></>;
+  if (batch.error) return <>{back}<ErrorNote error={batch.error} /></>;
+
+  const b = batch.data;
+  if (b.status === 'Queued' || b.status === 'Processing') {
+    return (
+      <>
+        {back}
+        <div className="flex flex-col items-start gap-3 py-10">
+          <LoaderCircle className="size-7 animate-spin text-ochre" aria-hidden />
+          <h1 className="font-display text-3xl font-semibold tracking-[-0.01em]">Reading {b.fileName}</h1>
+          <p className="max-w-prose text-ink-soft">
+            The AI is pulling out each transaction and choosing categories. Local models can take a minute or two for a long statement. You can leave this
+            page; the import keeps going.
+          </p>
+        </div>
+      </>
+    );
+  }
+
+  if (b.status !== 'ReadyForReview') {
+    return (
+      <>
+        {back}
+        <Empty title={b.status === 'Failed' ? `Couldn't read ${b.fileName}` : `${b.fileName} is already ${b.status === 'Committed' ? 'saved' : 'discarded'}`}>
+          {b.error}
+        </Empty>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {back}
+      <Review id={b.id} fileName={b.fileName} initial={b.rows ?? []} />
+    </>
+  );
+}
+
+interface EditableRow extends StagedRow {
+  /** The AI's proposed new category, kept so the user can switch back to it. */
+  suggestedNew: string | null;
+}
+
+function Review({ id, fileName, initial }: { id: string; fileName: string; initial: StagedRow[] }) {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const currency = useCurrency();
+  const invalidate = useInvalidateMoney();
+  const { data: categories = [] } = useCategories();
+  const [rows, setRows] = useState<EditableRow[]>(() => initial.map((r) => ({ ...r, suggestedNew: r.newCategoryName })));
+
+  const update = (index: number, patch: Partial<EditableRow>) => setRows((all) => all.map((r) => (r.index === index ? { ...r, ...patch } : r)));
+
+  const included = rows.filter((r) => r.include);
+  const spent = included.filter((r) => r.type === 'Expense').reduce((s, r) => s + Number(r.amount || 0), 0);
+  const duplicates = rows.filter((r) => r.isDuplicate).length;
+  const newCategories = [...new Set(included.filter((r) => r.categoryId === null && r.newCategoryName).map((r) => r.newCategoryName!))];
+
+  const commit = useMutation({
+    mutationFn: () =>
+      api.imports.commit(
+        id,
+        included.map((r) => ({
+          date: r.date,
+          amount: Number(r.amount),
+          type: r.type,
+          description: r.description,
+          merchant: r.merchant,
+          categoryId: r.categoryId,
+          newCategoryName: r.categoryId === null ? r.newCategoryName : null,
+        })),
+      ),
+    onSuccess: (r) => {
+      invalidate();
+      toast.show(`Saved ${r.transactionCount} transactions from ${fileName}`);
+      navigate('/transactions');
+    },
+  });
+
+  const discard = useMutation({
+    mutationFn: () => api.imports.discard(id),
+    onSuccess: () => {
+      invalidate();
+      navigate('/import');
+    },
+  });
+
+  if (rows.length === 0) {
+    return (
+      <Empty title="No transactions found" action={<Button onClick={() => discard.mutate()}>Discard import</Button>}>
+        The AI didn't find any transactions in {fileName}. If it does contain some, try a stronger model in Settings and import it again.
+      </Empty>
+    );
+  }
+
+  return (
+    <>
+      <header className="mb-6">
+        <h1 className="font-display text-[2.4rem] leading-tight font-semibold tracking-[-0.02em]">Check {rows.length} transactions</h1>
+        <p className="mt-1 text-ink-soft">
+          From {fileName}. Fix anything that looks off, untick rows you don't want, then save.
+          {duplicates > 0 && ` ${duplicates} look like ${duplicates === 1 ? 'a duplicate' : 'duplicates'} of transactions you already have and are unticked.`}
+        </p>
+      </header>
+
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+        <table className="w-full min-w-[56rem] text-[0.93rem]">
+          <thead>
+            <tr className="border-b border-line text-left text-[0.8rem] text-ink-soft">
+              <th className="w-10 py-2.5 pl-4">
+                <input
+                  type="checkbox"
+                  aria-label="Include all"
+                  className="size-4 accent-[var(--pine)]"
+                  checked={rows.every((r) => r.include)}
+                  onChange={(e) => setRows((all) => all.map((r) => ({ ...r, include: e.target.checked })))}
+                />
+              </th>
+              <th className="w-36 font-medium">Date</th>
+              <th className="font-medium">Description</th>
+              <th className="w-32 font-medium">Type</th>
+              <th className="w-56 font-medium">Category</th>
+              <th className="w-32 pr-4 text-right font-medium">Amount</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {rows.map((r) => (
+              <tr key={r.index} className={clsx(!r.include && 'opacity-45')}>
+                <td className="py-2 pl-4 align-top">
+                  <input
+                    type="checkbox"
+                    aria-label={`Include ${r.description}`}
+                    className="mt-2 size-4 accent-[var(--pine)]"
+                    checked={r.include}
+                    onChange={(e) => update(r.index, { include: e.target.checked })}
+                  />
+                </td>
+                <td className="py-2 pr-2 align-top">
+                  <input type="date" className="field !h-8 px-2 text-sm" value={r.date} onChange={(e) => update(r.index, { date: e.target.value })} />
+                </td>
+                <td className="py-2 pr-3 align-top">
+                  <input
+                    className="field !h-8 px-2 text-sm"
+                    aria-label="Description"
+                    value={r.merchant ?? r.description}
+                    onChange={(e) => update(r.index, { merchant: e.target.value })}
+                  />
+                  <p className="mt-1 flex flex-wrap gap-x-2 truncate px-2 text-xs text-ink-faint">
+                    {r.merchant && <span className="truncate">{r.description}</span>}
+                    {r.isDuplicate && <span className="font-medium text-ochre">Possible duplicate</span>}
+                    {r.matchedRule && (
+                      <span className="inline-flex items-center gap-0.5 text-pine">
+                        <Wand2 className="size-3" aria-hidden /> Your rule
+                      </span>
+                    )}
+                  </p>
+                </td>
+                <td className="py-2 pr-2 align-top">
+                  <select
+                    className="field !h-8 px-2 text-sm"
+                    aria-label="Type"
+                    value={r.type}
+                    onChange={(e) => update(r.index, { type: e.target.value as TransactionType })}
+                  >
+                    <option value="Expense">Expense</option>
+                    <option value="Income">Income</option>
+                    <option value="Transfer">Transfer</option>
+                  </select>
+                </td>
+                <td className="py-2 pr-2 align-top">
+                  <CategorySelect
+                    aria-label="Category"
+                    className="field !h-8 px-2 text-sm"
+                    categories={categories}
+                    type={r.type}
+                    value={r.categoryId}
+                    extraOption={r.suggestedNew ?? undefined}
+                    extraSelected={r.newCategoryName !== null}
+                    onChange={(categoryId) => update(r.index, { categoryId, newCategoryName: null })}
+                    onPickNew={() => update(r.index, { categoryId: null, newCategoryName: r.suggestedNew })}
+                  />
+                </td>
+                <td className="py-2 pr-4 align-top">
+                  <input
+                    className="field num !h-8 px-2 text-right text-sm"
+                    aria-label="Amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={r.amount}
+                    onChange={(e) => update(r.index, { amount: e.target.value as unknown as number })}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sticky bottom-16 z-10 mt-4 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border border-line bg-surface px-5 py-3 shadow-lg md:bottom-4">
+        <p className="text-sm text-ink-soft">
+          <span className="num font-medium text-ink">{included.length}</span> to save,{' '}
+          <span className="num font-medium text-ink">{money(spent, currency)}</span> in spending
+          {newCategories.length > 0 && <>, new {newCategories.length === 1 ? 'category' : 'categories'}: {newCategories.join(', ')}</>}
+        </p>
+        <div className="ml-auto flex gap-2">
+          <Button variant="ghost" onClick={() => discard.mutate()} busy={discard.isPending}>
+            Discard
+          </Button>
+          <Button variant="primary" onClick={() => commit.mutate()} busy={commit.isPending} disabled={included.length === 0}>
+            Save {included.length} transactions
+          </Button>
+        </div>
+        <ErrorNote error={commit.error ?? discard.error} className="w-full" />
+      </div>
+    </>
+  );
+}

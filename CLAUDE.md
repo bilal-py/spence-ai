@@ -1,0 +1,63 @@
+# CLAUDE.md
+
+Spence is a **local-first, single-user** expense tracker. You import statements (PDF, CSV, receipt photos) or add expenses by hand; an LLM extracts and categorizes them; you review before saving; the dashboard and AI summaries show where the money went.
+
+**Read `docs/PROJECT.md` first.** It holds the vision, current state, roadmap and the decision log. Append to the Decision Log whenever a product or architecture decision is made.
+
+## Commands
+
+```bash
+# Backend (.NET 11), from repo root
+dotnet build SpenceAI.slnx
+dotnet test SpenceAI.slnx
+cd SpenceAI.WebApi && dotnet run          # http://localhost:5234
+
+# Migrations (DbContext in Infrastructure, startup project WebApi)
+cd SpenceAI.WebApi
+dotnet ef migrations add <Name> --project ../SpenceAI.Infrastructure --startup-project . --output-dir Data/Migrations
+
+# Frontend (React 19 + TS + Vite + Tailwind 4), from spence-ai-web/
+npm install
+npm run dev          # http://localhost:5173
+npm run lint
+npm run build        # tsc -b && vite build
+```
+
+Migrations run automatically on API startup. Starter categories are seeded when the DB has none.
+
+## Architecture
+
+`WebApi → Infrastructure → Application → Domain`, plus `SpenceAI.Tests` (xUnit).
+
+- **Domain** (`Entities.cs`): `Transaction` (amount always positive; `Type` = Expense/Income/Transfer), `Category` (with `Kind`, `Icon`, optional `MonthlyBudget`), `MerchantRule`, `ImportBatch`, `AppSettings` (single row).
+- **Application**: `Abstractions.cs` (interfaces + `AppException`), `Text.cs` (`MerchantKey` normalizer, `TransactionFingerprint`), and feature folders: `Imports/` (pipeline), `Analytics/` (overview + AI insights), `Settings/`, `Categories/` (templates/seed).
+- **Infrastructure**: `AppDbContext` (SQLite), `Services.cs` (Data Protection secret protector, `ChatClientFactory`, PdfPig extractor, import file store), `ImportWorker.cs` (channel queue + `BackgroundService`), `DependencyInjection.cs` (`AddSpenceAi`).
+- **WebApi**: minimal APIs only, in `Endpoints/`. `Program.cs` maps `AppException` → ProblemDetails 4xx; everything else → generic 500 (no stack traces to clients).
+
+### Storage
+
+Everything lives in one data directory: `%LOCALAPPDATA%/SpenceAI` by default, or override it with `Storage:DataDirectory`. That directory holds `spence.db` (SQLite), `keys/` (Data Protection keys, which encrypt the stored AI API key), and `imports/` (uploaded files, deleted once processed). Machine-specific config goes in `SpenceAI.WebApi/appsettings.Local.json` (git-ignored).
+
+SQLite can't aggregate or ORDER BY `decimal`, so analytics and amount sorting are done **in memory** after filtering by date. That's fine for one user's data. Don't "optimize" it back into SQL.
+
+### Import pipeline (`Imports/ImportService.cs`)
+
+`POST /api/imports` saves the file and an `ImportBatch` (Queued), then enqueues it. `ImportWorker` processes one batch at a time:
+1. Extract: PDF pages (PdfPig) or CSV text are chunked to ~9k chars (the CSV header repeats in each chunk). Images go to the model as `DataContent` (this needs a vision model).
+2. `TransactionExtractor` calls `IChatClient.GetResponseAsync<ExtractionResult>` (structured output). **Every property on the extraction DTOs must be `required`**, or the JSON schema has no `required` list and Ollama returns `{}`.
+3. `ResolveDates` picks day-first or month-first per statement from the printed dates (a part >12, then the tightest date span, then machine culture). Don't trust the model's own `Date` for numeric formats.
+4. Categories are matched by name. Unknown names become `NewCategoryName` and are created only on commit. A `MerchantRule` (matched on `MerchantKey`) overrides the AI.
+5. Fingerprints are compared with existing transactions in the date range, so duplicates are flagged and unticked.
+6. Rows are staged as JSON on the batch (`ReadyForReview`). `POST /api/imports/{id}/commit` creates the transactions and **learns rules** wherever the user changed the suggested category. `DELETE /api/imports/{id}` discards a pending batch or undoes a committed one.
+
+### AI providers
+
+`ChatClientFactory` maps the `AppSettings.AiProvider` value: Ollama (OllamaSharp, 10 min timeout), OpenAI, or Gemini (through Gemini's OpenAI-compatible endpoint). All use Microsoft.Extensions.AI `IChatClient`. To add a provider, add an enum value and a switch arm, and add it to `PROVIDERS` in `spence-ai-web/src/pages/Settings.tsx`. Insights (`Analytics/InsightService.cs`) send **pre-computed aggregates** to the model, never raw rows.
+
+### Frontend (`spence-ai-web/src`)
+
+- `lib/api.ts` is the typed client. Its shapes mirror the C# records, and enums are serialized as strings (`"Expense"`). Keep them in sync.
+- `lib/hooks.ts` holds the TanStack Query keys. `useInvalidateMoney()` after any write. The selected period lives in the URL (`?p=2026-11` or `?p=2026`).
+- `components/TransactionEditor.tsx` is the global add/edit dialog (`useTransactionEditor().open(tx?)`; the **N** key opens it).
+- The design system lives in `index.css`: CSS variables for light and dark under Tailwind 4 `@theme inline` (paper, surface, ink, pine, ochre, brick). Fonts are Bricolage Grotesque (display) and Instrument Sans (UI), self-hosted with `@fontsource`. Use `.num` for money (tabular figures), `.field` and `.label` for inputs. Don't introduce cards everywhere or all-caps labels.
+- Only `vite.config.ts` should exist. A stray `vite.config.js` silently takes precedence and drops the Tailwind plugin.
