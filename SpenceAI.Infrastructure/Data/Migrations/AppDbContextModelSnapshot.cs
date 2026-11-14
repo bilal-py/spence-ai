@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261114151435_Accounts";
+    public override string LastMigrationId => "20261114202222_SavingsPotsAndPet";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -92,6 +92,21 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.Property<string>("OllamaUrl")
                     .IsRequired()
                     .HasMaxLength(200)
+                    .HasColumnType("TEXT");
+
+                b.Property<bool>("PetEnabled")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasDefaultValue(true);
+
+                b.Property<string>("PetName")
+                    .IsRequired()
+                    .ValueGeneratedOnAdd()
+                    .HasMaxLength(30)
+                    .HasColumnType("TEXT")
+                    .HasDefaultValue("Sprig");
+
+                b.Property<DateOnly?>("PetNudgeDismissedOn")
                     .HasColumnType("TEXT");
 
                 b.Property<string>("ProtectedApiKey")
@@ -223,6 +238,147 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("MerchantRules");
             });
 
+        modelBuilder.Entity("SpenceAI.Domain.PotChallenge", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<int?>("CategoryId")
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime?>("ClaimedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly>("EndDate")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Kind")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("PotId")
+                    .HasColumnType("INTEGER");
+
+                b.Property<decimal>("Reward")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly>("StartDate")
+                    .HasColumnType("TEXT");
+
+                b.Property<int?>("Target")
+                    .HasColumnType("INTEGER");
+
+                b.HasKey("Id");
+
+                b.HasIndex("CategoryId");
+
+                b.HasIndex("PotId");
+
+                b.ToTable("PotChallenges");
+            });
+
+        modelBuilder.Entity("SpenceAI.Domain.PotContribution", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<decimal>("Amount")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly>("Date")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Note")
+                    .HasMaxLength(200)
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("PotId")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("Source")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.HasIndex("PotId", "Date");
+
+                b.ToTable("PotContributions");
+            });
+
+        modelBuilder.Entity("SpenceAI.Domain.SavingsPot", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<bool>("CollectLeftover")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("Color")
+                    .IsRequired()
+                    .HasMaxLength(9)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly?>("Deadline")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Icon")
+                    .IsRequired()
+                    .HasMaxLength(40)
+                    .HasColumnType("TEXT");
+
+                b.Property<bool>("IsArchived")
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateOnly?>("LeftoverClaimedThrough")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("LinkPattern")
+                    .HasMaxLength(60)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(60)
+                    .HasColumnType("TEXT");
+
+                b.Property<decimal?>("NoSpendBonus")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly?>("NoSpendClaimedThrough")
+                    .HasColumnType("TEXT");
+
+                b.Property<int?>("RoundUpTo")
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateOnly?>("RoundUpsClaimedThrough")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly>("StartDate")
+                    .HasColumnType("TEXT");
+
+                b.Property<decimal>("TargetAmount")
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.ToTable("SavingsPots");
+            });
+
         modelBuilder.Entity("SpenceAI.Domain.Transaction", b =>
             {
                 b.Property<int>("Id")
@@ -303,6 +459,35 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("Category");
             });
 
+        modelBuilder.Entity("SpenceAI.Domain.PotChallenge", b =>
+            {
+                b.HasOne("SpenceAI.Domain.Category", "Category")
+                    .WithMany()
+                    .HasForeignKey("CategoryId")
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                b.HasOne("SpenceAI.Domain.SavingsPot", "Pot")
+                    .WithMany("Challenges")
+                    .HasForeignKey("PotId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.Navigation("Category");
+
+                b.Navigation("Pot");
+            });
+
+        modelBuilder.Entity("SpenceAI.Domain.PotContribution", b =>
+            {
+                b.HasOne("SpenceAI.Domain.SavingsPot", "Pot")
+                    .WithMany("Contributions")
+                    .HasForeignKey("PotId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.Navigation("Pot");
+            });
+
         modelBuilder.Entity("SpenceAI.Domain.Transaction", b =>
             {
                 b.HasOne("SpenceAI.Domain.Account", "Account")
@@ -340,6 +525,13 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
         modelBuilder.Entity("SpenceAI.Domain.ImportBatch", b =>
             {
                 b.Navigation("Transactions");
+            });
+
+        modelBuilder.Entity("SpenceAI.Domain.SavingsPot", b =>
+            {
+                b.Navigation("Challenges");
+
+                b.Navigation("Contributions");
             });
 #pragma warning restore 612, 618
     }

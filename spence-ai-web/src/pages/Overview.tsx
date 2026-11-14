@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { ArrowDownRight, ArrowUpRight, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Gift, RefreshCw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { Bar, BarChart, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { PeriodSwitcher } from '../components/PeriodSwitcher';
+import { PetStrip } from '../components/Pet';
 import { useTransactionEditor } from '../components/TransactionEditor';
 import { Button, Empty, ErrorNote, SectionTitle, Spinner } from '../components/ui';
 import { api, type CategoryTotal, type Overview as OverviewData } from '../lib/api';
@@ -23,8 +24,16 @@ export default function Overview() {
 
   return (
     <>
-      <div className="mb-6 flex justify-end">
-        <PeriodSwitcher />
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <PetStrip />
+        <div className="ml-auto flex items-center gap-2">
+          {period.kind === 'month' && period.key < currentMonthKey() && (
+            <Link to={`/wrapped?m=${period.key}`} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[0.85rem] font-medium text-ink-soft hover:bg-sunken hover:text-ink">
+              <Gift className="size-4" aria-hidden /> {period.label} wrapped
+            </Link>
+          )}
+          <PeriodSwitcher />
+        </div>
       </div>
 
       {isPending ? (

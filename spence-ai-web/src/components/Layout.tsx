@@ -1,14 +1,17 @@
 import { clsx } from 'clsx';
-import { ChartNoAxesColumn, FileUp, List, Plus, Settings, Shapes } from 'lucide-react';
+import { ChartNoAxesColumn, FileUp, Gift, List, PiggyBank, Plus, Settings, Shapes } from 'lucide-react';
 import { NavLink, Outlet, useSearchParams } from 'react-router';
 import { useQuickAdd } from './QuickAdd';
 
+// The phone's bottom bar has room for five; Categories and Wrapped are reached from Settings and the Overview there.
 const NAV = [
-  { to: '/', label: 'Overview', icon: ChartNoAxesColumn, keepPeriod: true },
-  { to: '/transactions', label: 'Transactions', icon: List, keepPeriod: true },
-  { to: '/import', label: 'Import', icon: FileUp },
-  { to: '/categories', label: 'Categories', icon: Shapes },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/', label: 'Overview', icon: ChartNoAxesColumn, keepPeriod: true, mobile: true },
+  { to: '/transactions', label: 'Transactions', icon: List, keepPeriod: true, mobile: true },
+  { to: '/pots', label: 'Pots', icon: PiggyBank, mobile: true },
+  { to: '/wrapped', label: 'Wrapped', icon: Gift, mobile: false },
+  { to: '/import', label: 'Import', icon: FileUp, mobile: true },
+  { to: '/categories', label: 'Categories', icon: Shapes, mobile: false },
+  { to: '/settings', label: 'Settings', icon: Settings, mobile: true },
 ];
 
 export function Layout() {
@@ -63,7 +66,7 @@ export function Layout() {
       </main>
 
       <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface md:hidden">
-        {NAV.map((item) => (
+        {NAV.filter((item) => item.mobile).map((item) => (
           <NavLink
             key={item.to}
             to={href(item)}

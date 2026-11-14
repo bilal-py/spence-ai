@@ -12,6 +12,9 @@ public interface IAppDbContext
     DbSet<Account> Accounts { get; }
     DbSet<ImportBatch> ImportBatches { get; }
     DbSet<AppSettings> Settings { get; }
+    DbSet<SavingsPot> SavingsPots { get; }
+    DbSet<PotContribution> PotContributions { get; }
+    DbSet<PotChallenge> PotChallenges { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
 

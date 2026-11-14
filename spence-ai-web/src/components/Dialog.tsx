@@ -28,6 +28,18 @@ export function Dialog({
     <dialog
       ref={ref}
       onClose={onClose}
+      // Handle Escape ourselves: Chrome can swallow a dialog's cancel (close-watcher rules), and a stray keypress should never trap the user.
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && !e.defaultPrevented) {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
       onClick={(e) => e.target === ref.current && onClose()}
       className={`m-auto w-[calc(100%-2rem)] rounded-xl border border-line bg-surface p-0 text-ink shadow-2xl ${wide ? 'max-w-2xl' : 'max-w-lg'}`}
     >

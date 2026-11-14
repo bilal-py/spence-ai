@@ -2,8 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { Check, Cloud, Cpu, Download } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { Link } from 'react-router';
 import { AccountsSection } from '../components/AccountsSection';
 import { BackupSection } from '../components/BackupSection';
+import { PetSection } from '../components/Pet';
 import { useToast } from '../components/Toast';
 import { Button, ErrorNote, PageHeader, SectionTitle, Spinner } from '../components/ui';
 import { api, type AiProvider, type Settings as SettingsData, type SettingsInput } from '../lib/api';
@@ -38,11 +40,18 @@ export default function Settings() {
   const { data, error, isPending } = useSettings();
   return (
     <>
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings">
+        <Link to="/categories" className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line bg-surface px-3.5 font-medium md:hidden">
+          Categories and rules
+        </Link>
+      </PageHeader>
       <ErrorNote error={error} />
       {isPending ? <Spinner /> : data && <SettingsForm key={JSON.stringify(data)} saved={data} />}
       <div className="mt-12">
         <AccountsSection />
+      </div>
+      <div className="mt-12">
+        <PetSection />
       </div>
       <div className="mt-12">
         <BackupSection />

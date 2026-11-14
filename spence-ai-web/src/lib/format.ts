@@ -89,7 +89,7 @@ export function shiftPeriod(p: Period, delta: number): string {
   return toIso(d).slice(0, 7);
 }
 
-export function monthLabel(key: string, style: 'short' | 'narrow' = 'short'): string {
+export function monthLabel(key: string, style: 'short' | 'narrow' | 'long' = 'short'): string {
   const [y, m] = key.split('-').map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: style });
 }

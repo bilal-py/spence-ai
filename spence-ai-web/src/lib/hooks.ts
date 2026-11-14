@@ -12,6 +12,9 @@ export const keys = {
   imports: ['imports'] as const,
   transactions: ['transactions'] as const,
   overview: ['overview'] as const,
+  pots: ['pots'] as const,
+  wrapped: ['wrapped'] as const,
+  pet: ['pet'] as const,
 };
 
 export function useSettings() {
@@ -34,7 +37,7 @@ export function useAccounts() {
 export function useInvalidateMoney() {
   const qc = useQueryClient();
   return useCallback(() => {
-    for (const key of [keys.transactions, keys.overview, keys.categories, keys.accounts, keys.imports, keys.rules]) {
+    for (const key of [keys.transactions, keys.overview, keys.categories, keys.accounts, keys.imports, keys.rules, keys.pots, keys.wrapped, keys.pet]) {
       qc.invalidateQueries({ queryKey: key });
     }
   }, [qc]);

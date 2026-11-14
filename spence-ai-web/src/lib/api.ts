@@ -257,6 +257,136 @@ export interface SettingsInput {
   currency: string;
 }
 
+// ---- Savings pots (SpenceAI.Application.Savings) ----
+
+/** Transfer = counted live from Transfer transactions that match the pot's link text. */
+export type PotSource = 'Manual' | 'Transfer' | 'RoundUp' | 'Leftover' | 'NoSpend' | 'Challenge';
+export type ChallengeKind = 'SkipCategory' | 'NoSpendDays';
+
+export interface PotPace {
+  daysLeft: number;
+  remaining: number;
+  perMonth: number;
+  perWeek: number;
+  expected: number;
+  status: 'ahead' | 'on-track' | 'behind' | 'done' | 'overdue';
+}
+
+export interface Claimable {
+  source: PotSource;
+  amount: number;
+  detail: string;
+}
+
+export interface PotEntry {
+  date: string;
+  amount: number;
+  source: PotSource;
+  note: string | null;
+  contributionId: number | null;
+  transactionId: number | null;
+}
+
+export interface Challenge {
+  id: number;
+  kind: ChallengeKind;
+  title: string;
+  categoryId: number | null;
+  target: number | null;
+  startDate: string;
+  endDate: string;
+  reward: number;
+  status: 'active' | 'won' | 'lost' | 'claimed';
+  progress: number;
+  goal: number;
+}
+
+export interface Pot {
+  id: number;
+  name: string;
+  color: string;
+  icon: string;
+  targetAmount: number;
+  startDate: string;
+  deadline: string | null;
+  linkPattern: string | null;
+  roundUpTo: number | null;
+  collectLeftover: boolean;
+  noSpendBonus: number | null;
+  isArchived: boolean;
+  saved: number;
+  progress: number;
+  bySource: Partial<Record<PotSource, number>>;
+  pace: PotPace | null;
+  available: Claimable[];
+  challenges: Challenge[];
+  history: PotEntry[];
+}
+
+export interface PotInput {
+  name: string;
+  targetAmount: number;
+  startDate: string | null;
+  deadline: string | null;
+  color: string;
+  icon: string;
+  linkPattern: string | null;
+  roundUpTo: number | null;
+  collectLeftover: boolean;
+  noSpendBonus: number | null;
+  isArchived: boolean;
+}
+
+export interface ChallengeInput {
+  kind: ChallengeKind;
+  categoryId: number | null;
+  target: number | null;
+  startDate: string;
+  endDate: string;
+  reward: number;
+}
+
+// ---- Monthly Wrapped ----
+
+export interface Wrapped {
+  month: string;
+  from: string;
+  to: string;
+  count: number;
+  spent: number;
+  previousSpent: number;
+  income: number;
+  savingsRate: number | null;
+  categories: { name: string; color: string; icon: string; total: number; share: number }[];
+  topMerchant: { name: string; total: number; visits: number } | null;
+  regular: { name: string; total: number; visits: number } | null;
+  biggestDay: { date: string; total: number; count: number } | null;
+  largest: { date: string; description: string; amount: number; category: string | null } | null;
+  noSpendDays: number;
+  longestNoSpendStreak: number;
+  daysCovered: number;
+  busiestWeekday: string | null;
+  busiestWeekdayShare: number;
+  newMerchants: number;
+  newMerchantNames: string[];
+  budgetsKept: number;
+  budgetsTotal: number;
+  savedToPots: number;
+}
+
+// ---- Pet ----
+
+export type PetMood = 'sleepy' | 'cheerful' | 'content' | 'watchful' | 'proud';
+
+export interface PetState {
+  enabled: boolean;
+  name: string;
+  mood: PetMood;
+  moodLine: string;
+  /** `text` may contain "{amount}": fill it with `amount` in the user's currency. */
+  nudge: { key: string; text: string; amount: number | null; link: string | null } | null;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   /** Machine-readable reason from ProblemDetails, e.g. 'pdf_password_required'. */
@@ -360,6 +490,28 @@ export const api = {
   analytics: {
     overview: (from: string, to: string) => request<Overview>(`/analytics/overview${qs({ from, to })}`),
     insights: (from: string, to: string) => request<Insight>('/insights', json('POST', { from, to })),
+  },
+  pots: {
+    list: (today: string) => request<Pot[]>(`/pots${qs({ today })}`),
+    create: (input: PotInput, today: string) => request<Pot>(`/pots${qs({ today })}`, json('POST', input)),
+    update: (id: number, input: PotInput, today: string) => request<Pot>(`/pots/${id}${qs({ today })}`, json('PUT', input)),
+    remove: (id: number) => request<void>(`/pots/${id}`, { method: 'DELETE' }),
+    /** Positive adds money, negative takes it out. */
+    contribute: (id: number, amount: number, date: string, note: string | null) =>
+      request<Pot>(`/pots/${id}/contributions${qs({ today: date })}`, json('POST', { amount, date, note })),
+    removeEntry: (id: number, entryId: number, today: string) => request<Pot>(`/pots/${id}/contributions/${entryId}${qs({ today })}`, { method: 'DELETE' }),
+    claim: (id: number, source: PotSource, today: string) => request<Pot>(`/pots/${id}/claim`, json('POST', { source, today })),
+    addChallenge: (id: number, input: ChallengeInput, today: string) => request<Pot>(`/pots/${id}/challenges${qs({ today })}`, json('POST', input)),
+    removeChallenge: (id: number, challengeId: number, today: string) =>
+      request<Pot>(`/pots/${id}/challenges/${challengeId}${qs({ today })}`, { method: 'DELETE' }),
+    claimChallenge: (id: number, challengeId: number, today: string) =>
+      request<Pot>(`/pots/${id}/challenges/${challengeId}/claim${qs({ today })}`, { method: 'POST' }),
+  },
+  wrapped: (month: string, today: string) => request<Wrapped>(`/analytics/wrapped${qs({ month, today })}`),
+  pet: {
+    get: (today: string) => request<PetState>(`/pet${qs({ today })}`),
+    dismiss: (today: string) => request<void>('/pet/dismiss', json('POST', { today })),
+    update: (enabled: boolean, name: string, today: string) => request<PetState>(`/pet/settings${qs({ today })}`, json('PUT', { enabled, name })),
   },
   settings: {
     get: () => request<Settings>('/settings'),

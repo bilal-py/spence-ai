@@ -127,8 +127,36 @@
   animation: ribbon-in 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
+/* The pet: a small bounce when happy, slow breathing when asleep. */
+@keyframes pet-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@keyframes pet-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.025, 0.975); }
+}
+@keyframes pet-z {
+  0% { opacity: 0; transform: translate(0, 2px); }
+  40% { opacity: 1; }
+  100% { opacity: 0; transform: translate(4px, -6px); }
+}
+.pet-bounce {
+  animation: pet-bounce 1.6s ease-in-out infinite;
+}
+.pet-breathe {
+  transform-origin: 32px 58px;
+  animation: pet-breathe 3.2s ease-in-out infinite;
+}
+.pet-z {
+  animation: pet-z 2.4s ease-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ribbon-grow {
+  .ribbon-grow,
+  .pet-bounce,
+  .pet-breathe,
+  .pet-z {
     animation: none;
   }
 }

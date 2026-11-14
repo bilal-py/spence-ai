@@ -159,4 +159,96 @@ public class AppSettings
     public bool AutoBackup { get; set; } = true;
     /// <summary>Optional extra folder (e.g. OneDrive) that every backup is also copied to.</summary>
     public string? BackupCopyFolder { get; set; }
+    /// <summary>Show Sprig, the mascot, and its one nudge a day on the Overview.</summary>
+    public bool PetEnabled { get; set; } = true;
+    public string PetName { get; set; } = "Sprig";
+    /// <summary>The day the user last dismissed a nudge; nothing more is shown until the next day.</summary>
+    public DateOnly? PetNudgeDismissedOn { get; set; }
+}
+
+/// <summary>Where money in a savings pot came from.</summary>
+public enum PotSource
+{
+    Manual,
+    /// <summary>Not stored: computed live from Transfer transactions matching the pot's link pattern.</summary>
+    Transfer,
+    RoundUp,
+    Leftover,
+    NoSpend,
+    Challenge,
+}
+
+public enum ChallengeKind
+{
+    /// <summary>No spending in one category between the start and end dates.</summary>
+    SkipCategory,
+    /// <summary>At least <see cref="PotChallenge.Target"/> days without any spending between the start and end dates.</summary>
+    NoSpendDays,
+}
+
+/// <summary>
+/// A savings goal. Money comes in by hand, from linked transfers (counted live), or from amounts the user claims:
+/// round-ups, leftover budget, no-spend-day bonuses and won challenges. Claims move a "claimed through" marker so nothing counts twice.
+/// </summary>
+public class SavingsPot
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Color { get; set; } = "#1e5a46";
+    public string Icon { get; set; } = "piggy-bank";
+    public decimal TargetAmount { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly? Deadline { get; set; }
+
+    /// <summary>Transfers whose merchant or description contains this text count toward the pot, e.g. "RD" or "Groww".</summary>
+    public string? LinkPattern { get; set; }
+
+    /// <summary>Round each expense up to this step (10, 50, 100…) and offer the spare change. Only one pot collects round-ups.</summary>
+    public int? RoundUpTo { get; set; }
+    public DateOnly? RoundUpsClaimedThrough { get; set; }
+
+    /// <summary>Offer what's left of the monthly budgets after each month ends. Only one pot collects leftovers.</summary>
+    public bool CollectLeftover { get; set; }
+    public DateOnly? LeftoverClaimedThrough { get; set; }
+
+    /// <summary>A reward the user pays themselves for each day with no spending.</summary>
+    public decimal? NoSpendBonus { get; set; }
+    public DateOnly? NoSpendClaimedThrough { get; set; }
+
+    public bool IsArchived { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<PotContribution> Contributions { get; set; } = new List<PotContribution>();
+    public ICollection<PotChallenge> Challenges { get; set; } = new List<PotChallenge>();
+}
+
+/// <summary>Money put into (positive) or taken out of (negative) a pot.</summary>
+public class PotContribution
+{
+    public int Id { get; set; }
+    public int PotId { get; set; }
+    public SavingsPot? Pot { get; set; }
+    public DateOnly Date { get; set; }
+    public decimal Amount { get; set; }
+    public PotSource Source { get; set; } = PotSource.Manual;
+    public string? Note { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>A small, time-boxed challenge. Winning it offers <see cref="Reward"/> to move into the pot.</summary>
+public class PotChallenge
+{
+    public int Id { get; set; }
+    public int PotId { get; set; }
+    public SavingsPot? Pot { get; set; }
+    public ChallengeKind Kind { get; set; }
+    public int? CategoryId { get; set; }
+    public Category? Category { get; set; }
+    /// <summary>For <see cref="ChallengeKind.NoSpendDays"/>: how many no-spend days to reach.</summary>
+    public int? Target { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public decimal Reward { get; set; }
+    public DateTime? ClaimedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

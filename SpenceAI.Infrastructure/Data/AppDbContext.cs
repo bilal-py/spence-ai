@@ -12,6 +12,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
     public DbSet<AppSettings> Settings => Set<AppSettings>();
+    public DbSet<SavingsPot> SavingsPots => Set<SavingsPot>();
+    public DbSet<PotContribution> PotContributions => Set<PotContribution>();
+    public DbSet<PotChallenge> PotChallenges => Set<PotChallenge>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
@@ -22,6 +25,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         builder.Properties<AiProvider>().HaveConversion<string>().HaveMaxLength(16);
         builder.Properties<AccountKind>().HaveConversion<string>().HaveMaxLength(16);
         builder.Properties<MoneyDirection>().HaveConversion<string>().HaveMaxLength(8);
+        builder.Properties<PotSource>().HaveConversion<string>().HaveMaxLength(16);
+        builder.Properties<ChallengeKind>().HaveConversion<string>().HaveMaxLength(16);
     }
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -74,6 +79,29 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.OllamaUrl).HasMaxLength(200);
             e.Property(s => s.Currency).HasMaxLength(3);
             e.Property(s => s.BackupCopyFolder).HasMaxLength(500);
+            e.Property(s => s.PetName).HasMaxLength(30).HasDefaultValue("Sprig");
+            e.Property(s => s.PetEnabled).HasDefaultValue(true);
+        });
+
+        b.Entity<SavingsPot>(e =>
+        {
+            e.Property(p => p.Name).HasMaxLength(60);
+            e.Property(p => p.Color).HasMaxLength(9);
+            e.Property(p => p.Icon).HasMaxLength(40);
+            e.Property(p => p.LinkPattern).HasMaxLength(60);
+        });
+
+        b.Entity<PotContribution>(e =>
+        {
+            e.Property(c => c.Note).HasMaxLength(200);
+            e.HasIndex(c => new { c.PotId, c.Date });
+            e.HasOne(c => c.Pot).WithMany(p => p.Contributions).HasForeignKey(c => c.PotId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<PotChallenge>(e =>
+        {
+            e.HasOne(c => c.Pot).WithMany(p => p.Challenges).HasForeignKey(c => c.PotId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(c => c.Category).WithMany().HasForeignKey(c => c.CategoryId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

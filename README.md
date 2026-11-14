@@ -25,19 +25,33 @@ Data lives in `%LOCALAPPDATA%/SpenceAI`. To use another folder, set `Storage:Dat
 
 ## Features
 
-- Import PDF statements, CSV exports and receipt photos (photos need a vision model). Every import is reviewed before saving, and it can be undone later.
-- Possible duplicates are flagged when you import the same statement twice.
-- Spence learns your categories: change one during review and it's remembered for that merchant.
-- Add and edit transactions by hand (press **N** anywhere). Bulk recategorize or delete, search, filter, and export to CSV.
-- Dashboard: monthly ribbon of spending by category, daily and 12-month trends, budgets per category, recurring charges, top merchants.
-- AI summary of any month or year, built from computed totals so the numbers are exact.
-- Light and dark themes.
+**Getting money in**
+- **Import statements**: PDF (including password-protected ones), CSV exports and receipt photos (photos need a vision model). Every import is reviewed before saving and can be undone later. Duplicates are flagged when you import the same statement twice.
+- **Quick add**: press **N** anywhere and type `chai 40 upi, uber 250 yesterday, got 80k salary`. Each entry becomes a card with amount, merchant, category, date and account; press Enter to save them all. Parsing is plain rules, so it works offline; the AI is only asked about categories it can't work out.
+- **It learns**: change a category once (in review or quick add) and it's remembered for that merchant. "Just this once" skips learning.
+- **Accounts**: tag transactions with the bank account, card, wallet or cash they went through, then filter and export by account.
+
+**Understanding it**
+- **Dashboard**: a ribbon of the month by category, daily and 12-month trends, budgets, recurring charges, top merchants and the biggest purchases.
+- **AI summary** of any month or year, built from computed totals so the numbers are exact.
+- **Monthly Wrapped**: recap cards for any month (top category, your regular spot, no-spend streaks, biggest day, new places, budgets kept). Save one card or all of them as a PNG, with a **Hide amounts** switch so you can share it safely.
+
+**Saving**
+- **Savings pots**: a goal, an optional deadline and the pace you need (per month and per week, with ahead/behind). Fill a pot by hand, from linked transfers (like a recurring deposit), round-ups on your spending, leftover budget, a bonus per no-spend day, or challenges like "skip Dining for two weeks".
+- **Sprig**, a small pet on the dashboard. Its mood follows how the month is pacing, and it offers at most one short nudge a day: a reward waiting, a budget getting close, a subscription renewing tomorrow. Rule-based, never guilt-trips, and can be renamed or hidden.
+
+**Yours**
+- Everything is stored in one SQLite file on your machine. Daily backups, one-click backup and restore, and an optional copy to a folder such as OneDrive.
+- Search, filter, bulk recategorize or delete, and export to CSV.
+- Light and dark themes, keyboard friendly, works on a phone-sized screen.
 
 ## Stack
 
 .NET 11 minimal APIs with EF Core and SQLite, Microsoft.Extensions.AI (Ollama, Gemini, OpenAI), and PdfPig. React 19, TypeScript, Vite, Tailwind 4, TanStack Query, and Recharts. Tests use xUnit.
 
 See `docs/PROJECT.md` for the roadmap and design decisions.
+
+A one-page product overview for a website lives in `site/index.html`. It's a single self-contained file (only Google Fonts load from outside), so you can upload it as-is.
 
 ## License
 

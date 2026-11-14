@@ -22,9 +22,9 @@ Working list for Spence. Decisions go in `PROJECT.md` (Decision Log); this file 
 **Then: insights and fun**
 
 - [x] Quick add in plain text (design below)
-- [ ] Monthly Wrapped (design below)
-- [ ] Savings pots (brainstorm below)
-- [ ] Nudges with a pet (brainstorm below)
+- [x] Monthly Wrapped (design below)
+- [x] Savings pots (brainstorm below)
+- [x] Nudges with a pet (brainstorm below)
 - [ ] Budget alerts and month-end forecast
 - [ ] Subscription manager: yearly cost, price-increase alerts
 - [ ] Unusual-charge alerts: odd amounts, double charges, new merchants
