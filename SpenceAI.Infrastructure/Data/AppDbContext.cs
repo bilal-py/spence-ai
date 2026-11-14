@@ -9,6 +9,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<MerchantRule> MerchantRules => Set<MerchantRule>();
+    public DbSet<Account> Accounts => Set<Account>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
     public DbSet<AppSettings> Settings => Set<AppSettings>();
 
@@ -19,6 +20,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         builder.Properties<TransactionSource>().HaveConversion<string>().HaveMaxLength(16);
         builder.Properties<ImportStatus>().HaveConversion<string>().HaveMaxLength(16);
         builder.Properties<AiProvider>().HaveConversion<string>().HaveMaxLength(16);
+        builder.Properties<AccountKind>().HaveConversion<string>().HaveMaxLength(16);
         builder.Properties<MoneyDirection>().HaveConversion<string>().HaveMaxLength(8);
     }
 
@@ -33,6 +35,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(t => t.Date);
             e.HasIndex(t => t.Fingerprint);
             e.HasOne(t => t.Category).WithMany(c => c.Transactions).HasForeignKey(t => t.CategoryId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(t => t.Account).WithMany(a => a.Transactions).HasForeignKey(t => t.AccountId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(t => t.ImportBatch).WithMany(i => i.Transactions).HasForeignKey(t => t.ImportBatchId).OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -42,6 +45,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(c => c.Color).HasMaxLength(9);
             e.Property(c => c.Icon).HasMaxLength(40);
             e.HasIndex(c => c.Name).IsUnique();
+        });
+
+        b.Entity<Account>(e =>
+        {
+            e.Property(a => a.Name).HasMaxLength(60);
+            e.Property(a => a.Last4).HasMaxLength(4);
+            e.Property(a => a.Color).HasMaxLength(9);
+            e.HasIndex(a => a.Name).IsUnique();
         });
 
         b.Entity<MerchantRule>(e =>

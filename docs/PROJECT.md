@@ -32,7 +32,9 @@ Rewritten from the earlier prototype. Everything below works end to end and was 
 | AI period summary (aggregates only) | Done |
 | Settings: Ollama / Gemini / OpenAI, model, key (encrypted), test connection, currency | Done |
 | Backup & restore | Done. One `.spence` file (DB + keys + manifest), daily automatic backups (7 kept per kind), a backup before every restore and schema update, optional copy folder, restore from file or from the saved list (Settings) |
-| Tests | 38 xUnit tests: text helpers, date resolution, recurring detection, full import flow with a fake LLM |
+| Accounts | Done. Bank / card / wallet / cash accounts (Settings), tag on manual add, quick add or a whole import at review; filter and export by account |
+| Quick add | Done. One line ("chai 40 upi, uber 250 yesterday") → confirm cards → Enter. Rules first, AI only for unknown categories |
+| Tests | xUnit tests: text helpers, date resolution, recurring detection, full import flow with a fake LLM |
 | CI | GitHub Actions: build, test, lint, web build |
 
 **Known limits**
@@ -55,7 +57,7 @@ Rewritten from the earlier prototype. Everything below works end to end and was 
 1. Golden-file accuracy tests: a folder of anonymized real statements plus expected rows, with a score per model. Run it when prompts or models change.
 2. OCR fallback for scanned PDFs: render pages to images and use a vision model.
 3. Deterministic CSV import: detect columns (date/description/debit/credit) and skip the LLM for parsing; use AI only for categorization. Faster and exact.
-4. Accounts: tag transactions with the card or bank account they came from; filter by account.
+4. ~~Accounts~~ (done 2026-11-14).
 5. ~~Backup & restore~~ (done 2026-11-14).
 
 **Then: make it insightful**
@@ -100,3 +102,6 @@ Append-only. Format: `YYYY-MM-DD: Decision. Why. (Alternatives rejected.)`
 - 2026-11-14: **Rule hints in the prompt only for merchants already in the chunk.** A rule's pattern is sent only if all its words appear in the text being sent, so hints add no data the statement wasn't already sending to a cloud provider. Rules still override the AI after extraction; hints help near-misses.
 - 2026-11-14: **Ollama requests ask for a 16k context (`num_ctx`).** Ollama defaulted qwen2.5:7b to 4096 tokens and silently cut the start of any longer prompt (the instructions and most of the statement), so a bank statement came back with only its last 7 rows. A reply cut off for length is now an error, not a partial import.
 - 2026-11-14: **Backups are a zip of a `VACUUM INTO` copy + Data Protection keys + manifest.** Consistent while the app runs, one file to move around. Keys are included so the saved API key survives a restore on the same Windows user (they're DPAPI-bound, so on another machine the key is asked for again). A restore validates the file (zip, manifest, integrity check, not from a newer schema), refuses during an import, backs up the current data first, then swaps the DB file and migrates. Backups aren't encrypted yet; a passphrase is an open question for synced folders. (Copying the live .db file rejected: can be torn mid-write.)
+- 2026-11-14: **Accounts are optional tags, set per transaction or per import.** An import is tagged at review ("Statement from"), not at upload, so nothing in the queue/worker changes. Deleting an account untags its transactions; archiving hides it from pickers. Analytics don't split by account yet. (A required account per transaction rejected: friction for cash and old data.)
+- 2026-11-14: **Quick add parses with rules on the server, AI only for unknown categories.** `QuickAddParser` reads amount (40, 1.2k, ₹499, 2.5L), date words, type words (got/refund/card bill) and account words (name, cash/card/upi); categories come from learned rules, then the line naming a category, then a small built-in merchant list, then `/quick-add/suggest`, which sends only merchant names and never fails the card. Saving uses `POST /transactions/batch` (all or nothing). The N key now opens quick add; the full form is one click away. (Client-side parsing rejected: untestable in xUnit and would duplicate `RuleBook`.)
+- 2026-11-14: **Every category picker ends with "+ New category…"**, which opens the category form over the current dialog and selects the new category.

@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import { ArrowDown, ArrowUp, Download, FileText, Image as ImageIcon, Search, Sheet, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { accountLabel } from '../components/AccountSelect';
 import { CategorySelect } from '../components/CategorySelect';
 import { PeriodSwitcher } from '../components/PeriodSwitcher';
 import { useToast } from '../components/Toast';
@@ -10,7 +11,7 @@ import { useTransactionEditor } from '../components/TransactionEditor';
 import { Button, Empty, ErrorNote, PageHeader, Segmented, Spinner } from '../components/ui';
 import { api, type Transaction, type TransactionQuery, type TransactionType } from '../lib/api';
 import { money, shortDate } from '../lib/format';
-import { keys, useCategories, useCurrency, useInvalidateMoney, usePeriod } from '../lib/hooks';
+import { keys, useAccounts, useCategories, useCurrency, useInvalidateMoney, usePeriod } from '../lib/hooks';
 import { CategoryIcon } from '../lib/icons';
 
 const PAGE_SIZE = 50;
@@ -24,8 +25,10 @@ export default function Transactions() {
   const toast = useToast();
   const invalidate = useInvalidateMoney();
   const { data: categories = [] } = useCategories();
+  const { data: accounts = [] } = useAccounts();
 
   const category = params.get('category');
+  const account = params.get('account');
   const type = (params.get('type') as TransactionType | null) ?? undefined;
   const sort = (params.get('sort') as 'date' | 'amount' | null) ?? 'date';
   const dir = (params.get('dir') as 'asc' | 'desc' | null) ?? 'desc';
@@ -60,6 +63,7 @@ export default function Transactions() {
     categoryId: category !== null ? Number(category) : undefined,
     type,
     search: params.get('q') ?? undefined,
+    accountId: account !== null ? Number(account) : undefined,
     sort,
     dir,
     page,
@@ -137,6 +141,17 @@ export default function Transactions() {
             </option>
           ))}
         </select>
+        {(accounts.length > 0 || account !== null) && (
+          <select aria-label="Account" className="field w-auto" value={account ?? ''} onChange={(e) => setParam('account', e.target.value)}>
+            <option value="">All accounts</option>
+            <option value="0">No account</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {accountLabel(a)}
+              </option>
+            ))}
+          </select>
+        )}
         <Segmented
           label="Type"
           value={type ?? 'all'}
@@ -306,7 +321,11 @@ function Row({
             </span>
             {SourceIcon && <SourceIcon className="size-3.5 shrink-0 text-ink-faint" aria-label={`Imported from ${tx.source}`} />}
           </span>
-          {tx.merchant && <span className="block truncate text-xs text-ink-faint">{tx.description}</span>}
+          {(tx.merchant || tx.accountName) && (
+            <span className="block truncate text-xs text-ink-faint">
+              {[tx.merchant && tx.description, tx.accountName].filter(Boolean).join(' · ')}
+            </span>
+          )}
         </button>
       </td>
       <td className="pr-3">

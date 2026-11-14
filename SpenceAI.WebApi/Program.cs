@@ -68,6 +68,8 @@ app.UseCors();
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 app.MapTransactionEndpoints();
 app.MapCategoryEndpoints();
+app.MapAccountEndpoints();
+app.MapQuickAddEndpoints();
 app.MapAppEndpoints();
 app.MapBackupEndpoints();
 

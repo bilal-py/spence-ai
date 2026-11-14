@@ -1,6 +1,7 @@
 import type { Category, TransactionType } from '../lib/api';
+import { useCategoryCreator } from './CategoryCreator';
 
-/** Native select grouped by kind; the transaction's own kind is listed first. */
+/** Native select grouped by kind; the transaction's own kind is listed first. The last option creates a new category and selects it. */
 export function CategorySelect({
   categories,
   value,
@@ -11,6 +12,7 @@ export function CategorySelect({
   extraOption,
   extraSelected,
   onPickNew,
+  allowCreate = true,
   'aria-label': ariaLabel,
 }: {
   categories: Category[];
@@ -23,8 +25,11 @@ export function CategorySelect({
   extraOption?: string;
   extraSelected?: boolean;
   onPickNew?: () => void;
+  /** Show "+ New category…" at the bottom. */
+  allowCreate?: boolean;
   'aria-label'?: string;
 }) {
+  const creator = useCategoryCreator();
   const primary = type === 'Income' ? 'Income' : 'Expense';
   const first = categories.filter((c) => c.kind === primary);
   const rest = categories.filter((c) => c.kind !== primary);
@@ -37,6 +42,7 @@ export function CategorySelect({
       value={value ?? (extraOption && extraSelected ? '__new' : '')}
       onChange={(e) => {
         if (e.target.value === '__new') onPickNew?.();
+        else if (e.target.value === '__create') creator.create({ kind: primary, onCreated: (c) => onChange(c.id) });
         else onChange(e.target.value === '' ? null : Number(e.target.value));
       }}
     >
@@ -58,6 +64,7 @@ export function CategorySelect({
           ))}
         </optgroup>
       )}
+      {allowCreate && <option value="__create">+ New category…</option>}
     </select>
   );
 }

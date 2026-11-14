@@ -3,12 +3,13 @@ import { clsx } from 'clsx';
 import { ArrowLeft, LoaderCircle, Wand2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
+import { AccountSelect } from '../components/AccountSelect';
 import { CategorySelect } from '../components/CategorySelect';
 import { useToast } from '../components/Toast';
 import { Button, Empty, ErrorNote, Spinner } from '../components/ui';
 import { api, type StagedRow, type TransactionType } from '../lib/api';
 import { money } from '../lib/format';
-import { useCategories, useCurrency, useInvalidateMoney } from '../lib/hooks';
+import { useAccounts, useCategories, useCurrency, useInvalidateMoney } from '../lib/hooks';
 
 export default function ImportReview() {
   const { id = '' } = useParams();
@@ -85,6 +86,8 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
   const currency = useCurrency();
   const invalidate = useInvalidateMoney();
   const { data: categories = [] } = useCategories();
+  const { data: accounts = [] } = useAccounts();
+  const [accountId, setAccountId] = useState<number | null>(null);
   const [rows, setRows] = useState<EditableRow[]>(() =>
     initial.map((r) => ({
       ...r,
@@ -119,6 +122,7 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
           index: r.index,
           remember: r.remember,
         })),
+        accountId,
       ),
     onSuccess: (r) => {
       invalidate();
@@ -155,6 +159,21 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
               ? " 1 has an amount that isn't printed on the statement, so the AI probably misread it. It's unticked; check it against the statement."
               : ` ${flagged} have amounts that aren't printed on the statement, so the AI probably misread them. They're unticked; check them against the statement.`)}
         </p>
+        {accounts.length > 0 && (
+          <div className="mt-4 flex items-center gap-2">
+            <label className="text-sm text-ink-soft" htmlFor="import-account">
+              Statement from
+            </label>
+            <AccountSelect
+              id="import-account"
+              className="field !h-8 w-auto px-2 text-sm"
+              accounts={accounts}
+              value={accountId}
+              onChange={setAccountId}
+              emptyLabel="Choose an account (optional)"
+            />
+          </div>
+        )}
       </header>
 
       <div className="overflow-x-auto rounded-lg border border-line bg-surface">
@@ -256,7 +275,7 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
                     className="field num !h-8 px-2 text-right text-sm"
                     aria-label="Amount"
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0.01"
                     value={r.amount}
                     onChange={(e) => update(r.index, { amount: e.target.value as unknown as number })}

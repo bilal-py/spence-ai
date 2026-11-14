@@ -1,16 +1,20 @@
 import { useMutation } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { api, type Transaction, type TransactionInput, type TransactionType } from '../lib/api';
 import { today } from '../lib/format';
-import { useCategories, useCurrency, useInvalidateMoney } from '../lib/hooks';
+import { useAccounts, useCategories, useCurrency, useInvalidateMoney } from '../lib/hooks';
+import { AccountSelect } from './AccountSelect';
 import { CategorySelect } from './CategorySelect';
 import { Dialog } from './Dialog';
 import { useToast } from './Toast';
 import { Button, ErrorNote, Segmented } from './ui';
 
+/** Values to start a new transaction with (e.g. carried over from quick add). */
+export type TransactionDraft = Partial<Pick<Transaction, 'date' | 'amount' | 'type' | 'description' | 'merchant' | 'categoryId' | 'accountId'>>;
+
 interface EditorApi {
-  /** Open with a transaction to edit it, or with nothing to add a new one. */
-  open: (tx?: Transaction) => void;
+  /** Open with a transaction to edit it, or with nothing (or a draft) to add a new one. */
+  open: (tx?: Transaction, draft?: TransactionDraft) => void;
 }
 
 const EditorContext = createContext<EditorApi>({ open: () => {} });
@@ -19,47 +23,37 @@ const EditorContext = createContext<EditorApi>({ open: () => {} });
 export const useTransactionEditor = () => useContext(EditorContext);
 
 export function TransactionEditorProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<{ open: boolean; tx?: Transaction; nonce: number }>({ open: false, nonce: 0 });
-  const open = useCallback((tx?: Transaction) => setState((s) => ({ open: true, tx, nonce: s.nonce + 1 })), []);
+  const [state, setState] = useState<{ open: boolean; tx?: Transaction; draft?: TransactionDraft; nonce: number }>({ open: false, nonce: 0 });
+  const open = useCallback((tx?: Transaction, draft?: TransactionDraft) => setState((s) => ({ open: true, tx, draft, nonce: s.nonce + 1 })), []);
   const close = useCallback(() => setState((s) => ({ ...s, open: false })), []);
   const value = useMemo(() => ({ open }), [open]);
-
-  // "N" adds a transaction from anywhere, unless the user is typing.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (e.key.toLowerCase() !== 'n' || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (target.closest('input, textarea, select, [contenteditable], dialog')) return;
-      e.preventDefault();
-      open();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
 
   return (
     <EditorContext.Provider value={value}>
       {children}
       <Dialog open={state.open} onClose={close} title={state.tx ? 'Edit transaction' : 'Add a transaction'}>
-        <TransactionForm key={state.nonce} tx={state.tx} onDone={close} />
+        <TransactionForm key={state.nonce} tx={state.tx} draft={state.draft} onDone={close} />
       </Dialog>
     </EditorContext.Provider>
   );
 }
 
-function TransactionForm({ tx, onDone }: { tx?: Transaction; onDone: () => void }) {
+function TransactionForm({ tx, draft, onDone }: { tx?: Transaction; draft?: TransactionDraft; onDone: () => void }) {
   const { data: categories = [] } = useCategories();
+  const { data: accounts = [] } = useAccounts();
   const currency = useCurrency();
   const invalidate = useInvalidateMoney();
   const toast = useToast();
 
-  const [type, setType] = useState<TransactionType>(tx?.type ?? 'Expense');
-  const [amount, setAmount] = useState(tx ? String(tx.amount) : '');
-  const [date, setDate] = useState(tx?.date ?? today());
-  const [description, setDescription] = useState(tx?.description ?? '');
-  const [merchant, setMerchant] = useState(tx?.merchant ?? '');
+  const start = tx ?? draft;
+  const [type, setType] = useState<TransactionType>(start?.type ?? 'Expense');
+  const [amount, setAmount] = useState(start?.amount ? String(start.amount) : '');
+  const [date, setDate] = useState(start?.date ?? today());
+  const [description, setDescription] = useState(start?.description ?? '');
+  const [merchant, setMerchant] = useState(start?.merchant ?? '');
   const [notes, setNotes] = useState(tx?.notes ?? '');
-  const [categoryId, setCategoryId] = useState<number | null>(tx?.categoryId ?? null);
+  const [categoryId, setCategoryId] = useState<number | null>(start?.categoryId ?? null);
+  const [accountId, setAccountId] = useState<number | null>(start?.accountId ?? null);
   const [remember, setRemember] = useState(false);
 
   const save = useMutation({
@@ -91,6 +85,7 @@ function TransactionForm({ tx, onDone }: { tx?: Transaction; onDone: () => void 
       notes: notes.trim() || null,
       categoryId,
       rememberCategory: remember,
+      accountId,
     });
   };
 
@@ -120,7 +115,7 @@ function TransactionForm({ tx, onDone }: { tx?: Transaction; onDone: () => void 
             className="field num font-display !h-12 !text-2xl font-semibold"
             inputMode="decimal"
             type="number"
-            step="0.01"
+            step="any"
             min="0.01"
             required
             autoFocus
@@ -152,18 +147,28 @@ function TransactionForm({ tx, onDone }: { tx?: Transaction; onDone: () => void 
         </div>
       </div>
 
-      <div>
-        <label className="label" htmlFor="tx-description">
-          Description
-        </label>
-        <input
-          id="tx-description"
-          className="field"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="What was it for?"
-          required={!merchant.trim()}
-        />
+      <div className={accounts.length > 0 ? 'grid gap-3 sm:grid-cols-2' : ''}>
+        <div>
+          <label className="label" htmlFor="tx-description">
+            Description
+          </label>
+          <input
+            id="tx-description"
+            className="field"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="What was it for?"
+            required={!merchant.trim()}
+          />
+        </div>
+        {accounts.length > 0 && (
+          <div>
+            <label className="label" htmlFor="tx-account">
+              Account
+            </label>
+            <AccountSelect id="tx-account" accounts={accounts} value={accountId} onChange={setAccountId} />
+          </div>
+        )}
       </div>
 
       <div>
@@ -188,7 +193,7 @@ function TransactionForm({ tx, onDone }: { tx?: Transaction; onDone: () => void 
             Delete
           </Button>
         ) : (
-          <span className="text-xs text-ink-faint">Tip: press N anywhere to add one</span>
+          <span className="text-xs text-ink-faint">Tip: press N anywhere for quick add</span>
         )}
         <div className="flex gap-2">
           <Button type="button" variant="ghost" onClick={onDone}>

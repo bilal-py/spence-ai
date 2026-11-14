@@ -2,7 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
+import { CategoryCreatorProvider } from './components/CategoryCreator';
 import { Layout } from './components/Layout';
+import { QuickAddProvider } from './components/QuickAdd';
 import { ToastProvider } from './components/Toast';
 import { TransactionEditorProvider } from './components/TransactionEditor';
 import { Spinner } from './components/ui';
@@ -25,9 +27,13 @@ const page = (el: React.ReactNode) => <Suspense fallback={<Spinner />}>{el}</Sus
 const router = createBrowserRouter([
   {
     element: (
-      <TransactionEditorProvider>
-        <Layout />
-      </TransactionEditorProvider>
+      <CategoryCreatorProvider>
+        <TransactionEditorProvider>
+          <QuickAddProvider>
+            <Layout />
+          </QuickAddProvider>
+        </TransactionEditorProvider>
+      </CategoryCreatorProvider>
     ),
     children: [
       { index: true, element: page(<Overview />) },

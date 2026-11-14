@@ -9,6 +9,7 @@ public interface IAppDbContext
     DbSet<Transaction> Transactions { get; }
     DbSet<Category> Categories { get; }
     DbSet<MerchantRule> MerchantRules { get; }
+    DbSet<Account> Accounts { get; }
     DbSet<ImportBatch> ImportBatches { get; }
     DbSet<AppSettings> Settings { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

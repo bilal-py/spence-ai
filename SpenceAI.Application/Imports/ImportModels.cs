@@ -91,4 +91,5 @@ public record CommitRow(
     // False means "just this once": the row is saved as edited, but no rule is learned from it.
     bool Remember = true);
 
-public record CommitImportRequest(IReadOnlyList<CommitRow> Rows);
+/// <param name="AccountId">The account or card the statement belongs to; every saved row is tagged with it.</param>
+public record CommitImportRequest(IReadOnlyList<CommitRow> Rows, int? AccountId = null);

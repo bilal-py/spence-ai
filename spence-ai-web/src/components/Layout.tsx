@@ -1,7 +1,7 @@
 import { clsx } from 'clsx';
 import { ChartNoAxesColumn, FileUp, List, Plus, Settings, Shapes } from 'lucide-react';
 import { NavLink, Outlet, useSearchParams } from 'react-router';
-import { useTransactionEditor } from './TransactionEditor';
+import { useQuickAdd } from './QuickAdd';
 
 const NAV = [
   { to: '/', label: 'Overview', icon: ChartNoAxesColumn, keepPeriod: true },
@@ -12,7 +12,7 @@ const NAV = [
 ];
 
 export function Layout() {
-  const editor = useTransactionEditor();
+  const quickAdd = useQuickAdd();
   const [params] = useSearchParams();
   const p = params.get('p');
   const href = (item: (typeof NAV)[number]) => (item.keepPeriod && p ? `${item.to}?p=${p}` : item.to);
@@ -41,7 +41,8 @@ export function Layout() {
         </nav>
         <div className="mt-auto">
           <button
-            onClick={() => editor.open()}
+            onClick={() => quickAdd.open()}
+            title="Quick add (N)"
             className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-pine font-medium text-on-pine hover:bg-pine-strong"
           >
             <Plus className="size-4" aria-hidden /> Add transaction
@@ -52,7 +53,7 @@ export function Layout() {
 
       <header className="flex items-center justify-between border-b border-line px-4 py-3 md:hidden">
         <Wordmark />
-        <button onClick={() => editor.open()} aria-label="Add transaction" className="grid size-9 place-items-center rounded-md bg-pine text-on-pine">
+        <button onClick={() => quickAdd.open()} aria-label="Add transaction" className="grid size-9 place-items-center rounded-md bg-pine text-on-pine">
           <Plus className="size-4" />
         </button>
       </header>

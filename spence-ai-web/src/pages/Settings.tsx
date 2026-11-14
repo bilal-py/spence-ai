@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { Check, Cloud, Cpu, Download } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { AccountsSection } from '../components/AccountsSection';
 import { BackupSection } from '../components/BackupSection';
 import { useToast } from '../components/Toast';
 import { Button, ErrorNote, PageHeader, SectionTitle, Spinner } from '../components/ui';
@@ -40,6 +41,9 @@ export default function Settings() {
       <PageHeader title="Settings" />
       <ErrorNote error={error} />
       {isPending ? <Spinner /> : data && <SettingsForm key={JSON.stringify(data)} saved={data} />}
+      <div className="mt-12">
+        <AccountsSection />
+      </div>
       <div className="mt-12">
         <BackupSection />
       </div>

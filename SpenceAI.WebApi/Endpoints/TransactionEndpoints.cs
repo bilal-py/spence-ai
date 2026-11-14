@@ -11,13 +11,13 @@ namespace SpenceAI.WebApi.Endpoints;
 public record TransactionDto(
     int Id, DateOnly Date, decimal Amount, TransactionType Type, string Description, string? Merchant, string? Notes,
     int? CategoryId, string? CategoryName, string? CategoryColor, string? CategoryIcon,
-    TransactionSource Source, Guid? ImportBatchId);
+    TransactionSource Source, Guid? ImportBatchId, int? AccountId, string? AccountName);
 
 public record TransactionPage(IReadOnlyList<TransactionDto> Items, int Total, int Page, int PageSize, decimal TotalExpense, decimal TotalIncome);
 
 public record UpsertTransactionRequest(
     DateOnly Date, decimal Amount, TransactionType Type, string Description, string? Merchant, string? Notes,
-    int? CategoryId, bool RememberCategory = false);
+    int? CategoryId, bool RememberCategory = false, int? AccountId = null);
 
 public record BulkCategorizeRequest(IReadOnlyList<int> Ids, int? CategoryId);
 public record BulkDeleteRequest(IReadOnlyList<int> Ids);
@@ -31,6 +31,7 @@ public static class TransactionEndpoints
         g.MapGet("/", List);
         g.MapGet("/export", Export);
         g.MapPost("/", Create);
+        g.MapPost("/batch", CreateMany);
         g.MapPut("/{id:int}", Update);
         g.MapDelete("/{id:int}", Delete);
         g.MapPost("/bulk/categorize", BulkCategorize);
@@ -38,15 +39,16 @@ public static class TransactionEndpoints
     }
 
     /// <param name="categoryId">0 means "uncategorized".</param>
+    /// <param name="accountId">0 means "no account".</param>
     private static async Task<TransactionPage> List(
         IAppDbContext db, CancellationToken ct,
         DateOnly? from = null, DateOnly? to = null, int? categoryId = null, TransactionType? type = null,
-        string? search = null, string sort = "date", string dir = "desc", int page = 1, int pageSize = 50)
+        string? search = null, int? accountId = null, string sort = "date", string dir = "desc", int page = 1, int pageSize = 50)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 500);
 
-        var items = await Filter(db, from, to, categoryId, type, search).ToListAsync(ct);
+        var items = await Filter(db, from, to, categoryId, type, search, accountId).ToListAsync(ct);
 
         // Sorting happens in memory: SQLite can't ORDER BY decimal, and a single user's data is small.
         IEnumerable<Transaction> sorted = (sort, dir) switch
@@ -66,18 +68,19 @@ public static class TransactionEndpoints
 
     private static async Task<IResult> Export(
         IAppDbContext db, CancellationToken ct,
-        DateOnly? from = null, DateOnly? to = null, int? categoryId = null, TransactionType? type = null, string? search = null)
+        DateOnly? from = null, DateOnly? to = null, int? categoryId = null, TransactionType? type = null, string? search = null,
+        int? accountId = null)
     {
-        var items = (await Filter(db, from, to, categoryId, type, search).ToListAsync(ct))
+        var items = (await Filter(db, from, to, categoryId, type, search, accountId).ToListAsync(ct))
             .OrderBy(t => t.Date).ThenBy(t => t.Id);
 
-        var csv = new StringBuilder("Date,Type,Amount,Description,Merchant,Category,Notes,Source\n");
+        var csv = new StringBuilder("Date,Type,Amount,Description,Merchant,Category,Account,Notes,Source\n");
         foreach (var t in items)
         {
             csv.AppendJoin(',',
                 t.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), t.Type,
                 t.Amount.ToString(CultureInfo.InvariantCulture),
-                Esc(t.Description), Esc(t.Merchant), Esc(t.Category?.Name), Esc(t.Notes), t.Source).Append('\n');
+                Esc(t.Description), Esc(t.Merchant), Esc(t.Category?.Name), Esc(t.Account?.Name), Esc(t.Notes), t.Source).Append('\n');
         }
 
         return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"spence-transactions-{DateTime.Now:yyyyMMdd}.csv");
@@ -92,6 +95,26 @@ public static class TransactionEndpoints
         db.Transactions.Add(tx);
         await db.SaveChangesAsync(ct);
         return await Load(db, tx.Id, ct);
+    }
+
+    /// <summary>Saves several manual transactions at once (quick add), all or nothing.</summary>
+    private static async Task<List<TransactionDto>> CreateMany(IReadOnlyList<UpsertTransactionRequest> req, IAppDbContext db, CancellationToken ct)
+    {
+        if (req.Count is 0 or > 50) throw new AppException("Add between 1 and 50 transactions at a time.");
+
+        var created = new List<Transaction>(req.Count);
+        foreach (var item in req)
+        {
+            var tx = new Transaction { Source = TransactionSource.Manual };
+            await Apply(tx, item, db, ct);
+            db.Transactions.Add(tx);
+            created.Add(tx);
+        }
+
+        await db.SaveChangesAsync(ct);
+        var ids = created.Select(t => t.Id).ToList();
+        var saved = await Query(db).Where(t => ids.Contains(t.Id)).ToListAsync(ct);
+        return saved.OrderBy(t => ids.IndexOf(t.Id)).Select(ToDto).ToList();
     }
 
     private static async Task<TransactionDto> Update(int id, UpsertTransactionRequest req, IAppDbContext db, CancellationToken ct)
@@ -124,14 +147,20 @@ public static class TransactionEndpoints
         return Results.Ok(new { deleted = count });
     }
 
-    private static IQueryable<Transaction> Filter(IAppDbContext db, DateOnly? from, DateOnly? to, int? categoryId, TransactionType? type, string? search)
+    private static IQueryable<Transaction> Query(IAppDbContext db) =>
+        db.Transactions.AsNoTracking().Include(t => t.Category).Include(t => t.Account);
+
+    private static IQueryable<Transaction> Filter(
+        IAppDbContext db, DateOnly? from, DateOnly? to, int? categoryId, TransactionType? type, string? search, int? accountId)
     {
-        var q = db.Transactions.AsNoTracking().Include(t => t.Category).AsQueryable();
+        var q = Query(db);
         if (from is not null) q = q.Where(t => t.Date >= from);
         if (to is not null) q = q.Where(t => t.Date <= to);
         if (categoryId == 0) q = q.Where(t => t.CategoryId == null);
         else if (categoryId is not null) q = q.Where(t => t.CategoryId == categoryId);
         if (type is not null) q = q.Where(t => t.Type == type);
+        if (accountId == 0) q = q.Where(t => t.AccountId == null);
+        else if (accountId is not null) q = q.Where(t => t.AccountId == accountId);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = $"%{search.Trim()}%";
@@ -146,6 +175,7 @@ public static class TransactionEndpoints
         if (req.Amount <= 0) throw new AppException("Amount must be above zero.");
         if (string.IsNullOrWhiteSpace(req.Description)) throw new AppException("Add a description.");
         if (req.CategoryId is int cid && !await db.Categories.AnyAsync(c => c.Id == cid, ct)) throw new AppException("Category not found.", 404);
+        if (req.AccountId is int aid && !await db.Accounts.AnyAsync(a => a.Id == aid, ct)) throw new AppException("Account not found.", 404);
 
         tx.Date = req.Date;
         tx.Amount = decimal.Round(req.Amount, 2);
@@ -154,6 +184,7 @@ public static class TransactionEndpoints
         tx.Merchant = string.IsNullOrWhiteSpace(req.Merchant) ? null : req.Merchant.Trim();
         tx.Notes = string.IsNullOrWhiteSpace(req.Notes) ? null : req.Notes.Trim();
         tx.CategoryId = req.CategoryId;
+        tx.AccountId = req.AccountId;
         tx.Fingerprint = TransactionFingerprint.Compute(tx.Date, tx.Amount, tx.Type, tx.Description);
 
         if (req.RememberCategory && req.CategoryId is int categoryId)
@@ -162,7 +193,9 @@ public static class TransactionEndpoints
             var direction = RuleBook.DirectionOf(tx.Type);
             if (key.Length > 0)
             {
-                var rule = await db.MerchantRules.FirstOrDefaultAsync(r => r.Pattern == key && r.Direction == direction, ct);
+                // Rules added earlier in the same request count too (quick add saves several rows in one go).
+                var rule = db.MerchantRules.Local.FirstOrDefault(r => r.Pattern == key && r.Direction == direction)
+                           ?? await db.MerchantRules.FirstOrDefaultAsync(r => r.Pattern == key && r.Direction == direction, ct);
                 if (rule is null) db.MerchantRules.Add(new MerchantRule { Pattern = key, Direction = direction, CategoryId = categoryId });
                 else
                 {
@@ -174,9 +207,10 @@ public static class TransactionEndpoints
     }
 
     private static async Task<TransactionDto> Load(IAppDbContext db, int id, CancellationToken ct) =>
-        ToDto(await db.Transactions.AsNoTracking().Include(t => t.Category).FirstAsync(t => t.Id == id, ct));
+        ToDto(await Query(db).FirstAsync(t => t.Id == id, ct));
 
     private static TransactionDto ToDto(Transaction t) =>
         new(t.Id, t.Date, t.Amount, t.Type, t.Description, t.Merchant, t.Notes,
-            t.CategoryId, t.Category?.Name, t.Category?.Color, t.Category?.Icon, t.Source, t.ImportBatchId);
+            t.CategoryId, t.Category?.Name, t.Category?.Color, t.Category?.Icon, t.Source, t.ImportBatchId,
+            t.AccountId, t.Account?.Name);
 }

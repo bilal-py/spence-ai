@@ -266,6 +266,10 @@ public class ImportService(
         var categories = await db.Categories.ToListAsync(ct);
         var byName = categories.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
         var validIds = categories.Select(c => c.Id).ToHashSet();
+        if (request.AccountId is int accountId && !await db.Accounts.AnyAsync(a => a.Id == accountId, ct))
+        {
+            throw new AppException("That account no longer exists.", 404);
+        }
 
         foreach (var row in request.Rows)
         {
@@ -283,6 +287,7 @@ public class ImportService(
                 Description = row.Description.Trim(),
                 Merchant = string.IsNullOrWhiteSpace(row.Merchant) ? null : row.Merchant.Trim(),
                 Category = category,
+                AccountId = request.AccountId,
                 Source = batch.Source,
                 ImportBatchId = batch.Id,
                 Fingerprint = TransactionFingerprint.Compute(row.Date, amount, row.Type, row.Description.Trim()),

@@ -14,14 +14,14 @@ Working list for Spence. Decisions go in `PROJECT.md` (Decision Log); this file 
 **Next: trustworthy for daily use**
 
 - [x] Backup & restore (design below)
-- [ ] Accounts: tag each transaction with its card or bank account; filter by account
+- [x] Accounts: tag each transaction with its card or bank account; filter by account
 - [ ] Exact CSV import: detect date/description/debit/credit columns; AI only for categories
 - [ ] Accuracy tests: anonymized real statements + expected rows, scored per model and prompt
 - [ ] Scanned PDFs: render pages to images, read with a vision model
 
 **Then: insights and fun**
 
-- [ ] Quick add in plain text (design below)
+- [x] Quick add in plain text (design below)
 - [ ] Monthly Wrapped (design below)
 - [ ] Savings pots (brainstorm below)
 - [ ] Nudges with a pet (brainstorm below)

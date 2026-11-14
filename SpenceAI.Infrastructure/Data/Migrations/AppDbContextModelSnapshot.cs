@@ -15,12 +15,51 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261114142210_BackupSettings";
+    public override string LastMigrationId => "20261114151435_Accounts";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
         modelBuilder.HasAnnotation("ProductVersion", "11.0.0");
+
+        modelBuilder.Entity("SpenceAI.Domain.Account", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("Color")
+                    .IsRequired()
+                    .HasMaxLength(9)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<bool>("IsArchived")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("Kind")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Last4")
+                    .HasMaxLength(4)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(60)
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.HasIndex("Name")
+                    .IsUnique();
+
+                b.ToTable("Accounts");
+            });
 
         modelBuilder.Entity("SpenceAI.Domain.AppSettings", b =>
             {
@@ -190,6 +229,9 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .ValueGeneratedOnAdd()
                     .HasColumnType("INTEGER");
 
+                b.Property<int?>("AccountId")
+                    .HasColumnType("INTEGER");
+
                 b.Property<decimal>("Amount")
                     .HasColumnType("TEXT");
 
@@ -238,6 +280,8 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
 
                 b.HasKey("Id");
 
+                b.HasIndex("AccountId");
+
                 b.HasIndex("CategoryId");
 
                 b.HasIndex("Date");
@@ -261,6 +305,11 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("SpenceAI.Domain.Transaction", b =>
             {
+                b.HasOne("SpenceAI.Domain.Account", "Account")
+                    .WithMany("Transactions")
+                    .HasForeignKey("AccountId")
+                    .OnDelete(DeleteBehavior.SetNull);
+
                 b.HasOne("SpenceAI.Domain.Category", "Category")
                     .WithMany("Transactions")
                     .HasForeignKey("CategoryId")
@@ -271,9 +320,16 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .HasForeignKey("ImportBatchId")
                     .OnDelete(DeleteBehavior.SetNull);
 
+                b.Navigation("Account");
+
                 b.Navigation("Category");
 
                 b.Navigation("ImportBatch");
+            });
+
+        modelBuilder.Entity("SpenceAI.Domain.Account", b =>
+            {
+                b.Navigation("Transactions");
             });
 
         modelBuilder.Entity("SpenceAI.Domain.Category", b =>

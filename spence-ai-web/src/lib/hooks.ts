@@ -7,6 +7,7 @@ import { parsePeriod } from './format';
 export const keys = {
   settings: ['settings'] as const,
   categories: ['categories'] as const,
+  accounts: ['accounts'] as const,
   rules: ['rules'] as const,
   imports: ['imports'] as const,
   transactions: ['transactions'] as const,
@@ -25,11 +26,15 @@ export function useCategories() {
   return useQuery({ queryKey: keys.categories, queryFn: api.categories.list, staleTime: 30_000 });
 }
 
+export function useAccounts() {
+  return useQuery({ queryKey: keys.accounts, queryFn: api.accounts.list, staleTime: 30_000 });
+}
+
 /** Anything that changes transactions invalidates every view derived from them. */
 export function useInvalidateMoney() {
   const qc = useQueryClient();
   return useCallback(() => {
-    for (const key of [keys.transactions, keys.overview, keys.categories, keys.imports, keys.rules]) {
+    for (const key of [keys.transactions, keys.overview, keys.categories, keys.accounts, keys.imports, keys.rules]) {
       qc.invalidateQueries({ queryKey: key });
     }
   }, [qc]);

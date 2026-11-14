@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SpenceAI.Application;
 using SpenceAI.Application.Analytics;
 using SpenceAI.Application.Imports;
+using SpenceAI.Application.QuickAdd;
 using SpenceAI.Application.Settings;
 using SpenceAI.Infrastructure.Data;
 
@@ -51,6 +52,7 @@ public static class DependencyInjection
         services.AddScoped<ImportService>();
         services.AddScoped<AnalyticsService>();
         services.AddScoped<InsightService>();
+        services.AddScoped<QuickAddService>();
 
         return services;
     }

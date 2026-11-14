@@ -9,6 +9,7 @@ export type ImportStatus = 'Queued' | 'Processing' | 'ReadyForReview' | 'Committ
 export type AiProvider = 'Ollama' | 'Gemini' | 'OpenAI';
 /** Which way money moved. Rules are learned per direction, so Amazon refunds and Amazon purchases get separate rules. */
 export type MoneyDirection = 'Out' | 'In';
+export type AccountKind = 'Bank' | 'Card' | 'Cash' | 'Wallet';
 
 export interface Transaction {
   id: number;
@@ -24,6 +25,8 @@ export interface Transaction {
   categoryIcon: string | null;
   source: TransactionSource;
   importBatchId: string | null;
+  accountId: number | null;
+  accountName: string | null;
 }
 
 export interface TransactionPage {
@@ -44,6 +47,7 @@ export interface TransactionInput {
   notes: string | null;
   categoryId: number | null;
   rememberCategory?: boolean;
+  accountId?: number | null;
 }
 
 export interface TransactionQuery {
@@ -52,6 +56,8 @@ export interface TransactionQuery {
   categoryId?: number;
   type?: TransactionType;
   search?: string;
+  /** 0 = no account. */
+  accountId?: number;
   sort?: 'date' | 'amount';
   dir?: 'asc' | 'desc';
   page?: number;
@@ -66,6 +72,39 @@ export interface Category {
   kind: TransactionType;
   monthlyBudget: number | null;
   transactionCount: number;
+}
+
+export interface Account {
+  id: number;
+  name: string;
+  kind: AccountKind;
+  last4: string | null;
+  color: string;
+  isArchived: boolean;
+  transactionCount: number;
+}
+
+export type AccountInput = Pick<Account, 'name' | 'kind' | 'last4' | 'color' | 'isArchived'>;
+
+/** One entry read from a quick-add line. Shapes mirror SpenceAI.Application.QuickAdd. */
+export interface QuickAddRow {
+  text: string;
+  date: string;
+  amount: number | null;
+  type: TransactionType;
+  merchant: string;
+  categoryId: number | null;
+  /** How the category was chosen: a rule you taught, the line naming a category, or a common merchant. */
+  categorySource: 'rule' | 'name' | 'keyword' | null;
+  accountId: number | null;
+  matchedRule: string | null;
+  /** Fields worth a second look: 'amount' | 'merchant' | 'account'. */
+  unsure: string[];
+}
+
+export interface QuickAddSuggestion {
+  categoryIds: (number | null)[];
+  error: string | null;
 }
 
 export type CategoryInput = Pick<Category, 'name' | 'color' | 'icon' | 'kind' | 'monthlyBudget'>;
@@ -275,6 +314,8 @@ export const api = {
     list: (q: TransactionQuery) => request<TransactionPage>(`/transactions${qs(q)}`),
     exportUrl: (q: TransactionQuery) => `${API_URL}/transactions/export${qs({ ...q, page: undefined, pageSize: undefined })}`,
     create: (input: TransactionInput) => request<Transaction>('/transactions', json('POST', input)),
+    /** Saves several at once, all or nothing (quick add). */
+    createMany: (inputs: TransactionInput[]) => request<Transaction[]>('/transactions/batch', json('POST', inputs)),
     update: (id: number, input: TransactionInput) => request<Transaction>(`/transactions/${id}`, json('PUT', input)),
     remove: (id: number) => request<void>(`/transactions/${id}`, { method: 'DELETE' }),
     bulkCategorize: (ids: number[], categoryId: number | null) =>
@@ -286,6 +327,16 @@ export const api = {
     create: (input: CategoryInput) => request<Category>('/categories', json('POST', input)),
     update: (id: number, input: CategoryInput) => request<Category>(`/categories/${id}`, json('PUT', input)),
     remove: (id: number) => request<void>(`/categories/${id}`, { method: 'DELETE' }),
+  },
+  accounts: {
+    list: () => request<Account[]>('/accounts'),
+    create: (input: AccountInput) => request<Account>('/accounts', json('POST', input)),
+    update: (id: number, input: AccountInput) => request<Account>(`/accounts/${id}`, json('PUT', input)),
+    remove: (id: number) => request<void>(`/accounts/${id}`, { method: 'DELETE' }),
+  },
+  quickAdd: {
+    parse: (text: string, today: string) => request<QuickAddRow[]>('/quick-add/parse', json('POST', { text, today })),
+    suggest: (items: { merchant: string; type: TransactionType }[]) => request<QuickAddSuggestion>('/quick-add/suggest', json('POST', { items })),
   },
   rules: {
     list: () => request<Rule[]>('/rules'),
@@ -301,7 +352,9 @@ export const api = {
       if (password) form.append('password', password);
       return request<ImportBatch>('/imports', { method: 'POST', body: form });
     },
-    commit: (id: string, rows: CommitRow[]) => request<ImportBatch>(`/imports/${id}/commit`, json('POST', { rows })),
+    /** `accountId` tags every saved row with the account or card the statement is from. */
+    commit: (id: string, rows: CommitRow[], accountId: number | null = null) =>
+      request<ImportBatch>(`/imports/${id}/commit`, json('POST', { rows, accountId })),
     discard: (id: string) => request<void>(`/imports/${id}`, { method: 'DELETE' }),
   },
   analytics: {

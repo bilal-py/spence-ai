@@ -62,6 +62,26 @@ public sealed class ImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Committed_rows_are_tagged_with_the_chosen_account()
+    {
+        var card = new Account { Name = "Amex", Kind = AccountKind.Card };
+        _db.Accounts.Add(card);
+        await _db.SaveChangesAsync();
+        _ai.Reply(new { Date = "2026-05-02", DatePrinted = "2026-05-02", Amount = 42.10, Type = "expense", Description = "WHOLE FOODS #123", Merchant = "Whole Foods", Category = "Groceries" });
+
+        var batch = await RunImportAsync();
+        await _imports.CommitAsync(batch.Id, new CommitImportRequest(batch.Rows!.Select(ToCommit).ToList(), card.Id), default);
+
+        Assert.Equal(card.Id, (await _db.Transactions.SingleAsync()).AccountId);
+        await Assert.ThrowsAsync<AppException>(async () =>
+        {
+            _ai.Reply(new { Date = "2026-05-09", DatePrinted = "2026-05-09", Amount = 5, Type = "expense", Description = "X", Merchant = "X", Category = "Groceries" });
+            var next = await RunImportAsync();
+            await _imports.CommitAsync(next.Id, new CommitImportRequest(next.Rows!.Select(ToCommit).ToList(), 999), default);
+        });
+    }
+
+    [Fact]
     public async Task Reimporting_the_same_rows_flags_duplicates()
     {
         object row = new { Date = "2026-05-02", DatePrinted = "2026-05-02", Amount = 42.10, Type = "expense", Description = "WHOLE FOODS #123", Merchant = "Whole Foods", Category = "Groceries" };

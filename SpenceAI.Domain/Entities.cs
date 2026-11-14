@@ -27,6 +27,15 @@ public enum ImportStatus
     Discarded,
 }
 
+/// <summary>What kind of place money sits in. Quick add maps words like "cash", "card" or "upi" to an account through this.</summary>
+public enum AccountKind
+{
+    Bank,
+    Card,
+    Cash,
+    Wallet,
+}
+
 public enum AiProvider
 {
     Ollama,
@@ -47,6 +56,10 @@ public class Transaction
 
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
+
+    /// <summary>The bank account, card, wallet or cash the money moved through. Optional.</summary>
+    public int? AccountId { get; set; }
+    public Account? Account { get; set; }
 
     public TransactionSource Source { get; set; } = TransactionSource.Manual;
     public Guid? ImportBatchId { get; set; }
@@ -69,6 +82,22 @@ public class Category
     public TransactionType Kind { get; set; } = TransactionType.Expense;
     /// <summary>Optional monthly spending limit for this category.</summary>
     public decimal? MonthlyBudget { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+}
+
+/// <summary>A bank account, card, wallet or cash that transactions are tagged with.</summary>
+public class Account
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public AccountKind Kind { get; set; } = AccountKind.Bank;
+    /// <summary>Last digits of the card or account number, to tell similar accounts apart. Optional.</summary>
+    public string? Last4 { get; set; }
+    public string Color { get; set; } = "#64748b";
+    /// <summary>Hidden from pickers but kept on old transactions.</summary>
+    public bool IsArchived { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
