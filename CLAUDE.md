@@ -29,14 +29,14 @@ Migrations run automatically on API startup. Starter categories are seeded when 
 
 `WebApi → Infrastructure → Application → Domain`, plus `SpenceAI.Tests` (xUnit).
 
-- **Domain** (`Entities.cs`): `Transaction` (amount always positive; `Type` = Expense/Income/Transfer/Refund; spending = expenses − refunds, transfers count as neither), `Category` (with `Kind`, `Icon`, optional `MonthlyBudget`), `MerchantRule` (category and/or `Type` = Transfer), `ImportBatch`, `AppSettings` (single row).
+- **Domain** (`Entities.cs`): `Transaction` (amount always positive; `Type` = Expense/Income/Transfer/Refund; spending = expenses − refunds, transfers count as neither), `Category` (with `Kind`, `Icon`, optional `MonthlyBudget`), `MerchantRule` (pattern + money `Direction` → category and/or `Type`; longest pattern wins, see `Imports/RuleBook.cs`), `ImportBatch`, `AppSettings` (single row).
 - **Application**: `Abstractions.cs` (interfaces + `AppException`), `Text.cs` (`MerchantKey` normalizer, `TransactionFingerprint`), and feature folders: `Imports/` (pipeline), `Analytics/` (overview + AI insights), `Settings/`, `Categories/` (templates/seed).
-- **Infrastructure**: `AppDbContext` (SQLite), `Services.cs` (Data Protection secret protector, `ChatClientFactory`, PdfPig extractor, import file store), `ImportWorker.cs` (channel queue + `BackgroundService`), `DependencyInjection.cs` (`AddSpenceAi`).
+- **Infrastructure**: `AppDbContext` (SQLite), `Services.cs` (Data Protection secret protector, `ChatClientFactory`, PdfPig extractor, import file store), `ImportWorker.cs` (channel queue + `BackgroundService`), `BackupService.cs` (backup/restore + daily `BackupScheduler`), `DependencyInjection.cs` (`AddSpenceAi`).
 - **WebApi**: minimal APIs only, in `Endpoints/`. `Program.cs` maps `AppException` → ProblemDetails 4xx; everything else → generic 500 (no stack traces to clients).
 
 ### Storage
 
-Everything lives in one data directory: `%LOCALAPPDATA%/SpenceAI` by default, or override it with `Storage:DataDirectory`. That directory holds `spence.db` (SQLite), `keys/` (Data Protection keys, which encrypt the stored AI API key), and `imports/` (uploaded files, deleted once processed; a PDF is stored as its extracted text, never the PDF itself). Machine-specific config goes in `SpenceAI.WebApi/appsettings.Local.json` (git-ignored).
+Everything lives in one data directory: `%LOCALAPPDATA%/SpenceAI` by default, or override it with `Storage:DataDirectory`. That directory holds `spence.db` (SQLite), `keys/` (Data Protection keys, which encrypt the stored AI API key), `imports/` (uploaded files, deleted once processed; a PDF is stored as its extracted text, never the PDF itself) and `backups/` (`.spence` zips from `BackupService`: DB snapshot via `VACUUM INTO` + keys + manifest). Machine-specific config goes in `SpenceAI.WebApi/appsettings.Local.json` (git-ignored).
 
 SQLite can't aggregate or ORDER BY `decimal`, so analytics and amount sorting are done **in memory** after filtering by date. That's fine for one user's data. Don't "optimize" it back into SQL.
 

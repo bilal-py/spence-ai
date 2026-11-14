@@ -43,6 +43,8 @@ public static class DependencyInjection
         services.AddSingleton<ImportQueue>();
         services.AddSingleton<IImportQueue>(sp => sp.GetRequiredService<ImportQueue>());
         services.AddHostedService<ImportWorker>();
+        services.AddSingleton<BackupService>();
+        services.AddHostedService<BackupScheduler>();
 
         services.AddSingleton<TransactionExtractor>();
         services.AddScoped<SettingsService>();

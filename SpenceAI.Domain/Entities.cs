@@ -126,4 +126,8 @@ public class AppSettings
     /// <summary>API key protected with ASP.NET Data Protection (keys live in the local data directory).</summary>
     public string? ProtectedApiKey { get; set; }
     public string Currency { get; set; } = "USD";
+    /// <summary>Take a backup once a day (kept in the data directory's backups folder).</summary>
+    public bool AutoBackup { get; set; } = true;
+    /// <summary>Optional extra folder (e.g. OneDrive) that every backup is also copied to.</summary>
+    public string? BackupCopyFolder { get; set; }
 }

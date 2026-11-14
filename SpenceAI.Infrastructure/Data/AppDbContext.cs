@@ -62,6 +62,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.AiModel).HasMaxLength(100);
             e.Property(s => s.OllamaUrl).HasMaxLength(200);
             e.Property(s => s.Currency).HasMaxLength(3);
+            e.Property(s => s.BackupCopyFolder).HasMaxLength(500);
         });
     }
 }

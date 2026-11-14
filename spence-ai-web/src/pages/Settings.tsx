@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { Check, Cloud, Cpu, Download } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { BackupSection } from '../components/BackupSection';
 import { useToast } from '../components/Toast';
 import { Button, ErrorNote, PageHeader, SectionTitle, Spinner } from '../components/ui';
 import { api, type AiProvider, type Settings as SettingsData, type SettingsInput } from '../lib/api';
@@ -39,6 +40,9 @@ export default function Settings() {
       <PageHeader title="Settings" />
       <ErrorNote error={error} />
       {isPending ? <Spinner /> : data && <SettingsForm key={JSON.stringify(data)} saved={data} />}
+      <div className="mt-12">
+        <BackupSection />
+      </div>
     </>
   );
 }
@@ -183,7 +187,8 @@ function SettingsForm({ saved }: { saved: SettingsData }) {
       <section>
         <SectionTitle>Your data</SectionTitle>
         <p className="max-w-prose text-ink-soft">
-          Everything is stored in a database file on this computer. Export a copy whenever you like; the CSV opens in any spreadsheet app.
+          Everything is stored in a database file on this computer. Export your transactions as a CSV for any spreadsheet app, or use Backups below
+          to save and restore everything.
         </p>
         <a
           href={api.transactions.exportUrl({})}

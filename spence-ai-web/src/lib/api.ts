@@ -114,6 +114,46 @@ export interface ImportBatch {
   rows: StagedRow[] | null;
 }
 
+/** Manual = "Back up now"; Daily = automatic; BeforeRestore/BeforeUpdate = taken just before data was replaced or migrated. */
+export type BackupKind = 'Manual' | 'Daily' | 'BeforeRestore' | 'BeforeUpdate';
+
+export interface BackupFile {
+  fileName: string;
+  kind: BackupKind;
+  createdAt: string;
+  sizeBytes: number;
+}
+
+export interface BackupStatus {
+  directory: string;
+  autoBackup: boolean;
+  copyFolder: string | null;
+  lastBackupAt: string | null;
+  backups: BackupFile[];
+}
+
+export interface BackupSettingsInput {
+  autoBackup: boolean;
+  copyFolder: string | null;
+}
+
+export interface BackupManifest {
+  format: number;
+  appVersion: string;
+  lastMigration: string | null;
+  createdAt: string;
+  transactions: number;
+  categories: number;
+  rules: number;
+  firstDate: string | null;
+  lastDate: string | null;
+}
+
+export interface RestoreResult {
+  restored: BackupManifest;
+  safetyBackup: string;
+}
+
 export interface CommitRow {
   date: string;
   amount: number;
@@ -274,4 +314,19 @@ export const api = {
     test: (input: SettingsInput) => request<{ reply: string }>('/settings/test', json('POST', input)),
     ollamaModels: (url: string) => request<string[]>(`/settings/ollama-models${qs({ url })}`),
   },
+  backup: {
+    status: () => request<BackupStatus>('/backup'),
+    create: () => request<BackupFile>('/backup', { method: 'POST' }),
+    updateSettings: (input: BackupSettingsInput) => request<BackupStatus>('/backup/settings', json('PUT', input)),
+    downloadUrl: (fileName: string) => `${API_URL}/backup/files/${encodeURIComponent(fileName)}`,
+    inspect: (file: File) => request<BackupManifest>('/backup/inspect', { method: 'POST', body: fileForm(file) }),
+    restore: (file: File) => request<RestoreResult>('/backup/restore', { method: 'POST', body: fileForm(file) }),
+    restoreSaved: (fileName: string) => request<RestoreResult>(`/backup/files/${encodeURIComponent(fileName)}/restore`, { method: 'POST' }),
+  },
 };
+
+function fileForm(file: File): FormData {
+  const form = new FormData();
+  form.append('file', file);
+  return form;
+}

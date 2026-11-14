@@ -14,7 +14,8 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
 
 builder.Services.AddSpenceAi(builder.Configuration);
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = ImportService.MaxFileBytes + 1024 * 1024);
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = BackupService.MaxUploadBytes);
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = BackupService.MaxUploadBytes);
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
@@ -42,11 +43,18 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var storage = scope.ServiceProvider.GetRequiredService<StorageOptions>();
+
+    // An update that changes the schema backs up the old data first, so it can be restored if anything goes wrong.
+    if (File.Exists(storage.DatabasePath) && (await db.Database.GetAppliedMigrationsAsync()).Any() && (await db.Database.GetPendingMigrationsAsync()).Any())
+    {
+        await scope.ServiceProvider.GetRequiredService<BackupService>().CreateAsync(BackupKind.BeforeUpdate, CancellationToken.None);
+    }
+
     await db.Database.MigrateAsync();
     await CategoryTemplates.SeedAsync(db);
     await scope.ServiceProvider.GetRequiredService<SettingsService>().GetEntityAsync();
 
-    var storage = scope.ServiceProvider.GetRequiredService<StorageOptions>();
     app.Logger.LogInformation("Data directory: {DataDirectory}", storage.DataDirectory);
 }
 
@@ -61,5 +69,6 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 app.MapTransactionEndpoints();
 app.MapCategoryEndpoints();
 app.MapAppEndpoints();
+app.MapBackupEndpoints();
 
 app.Run();

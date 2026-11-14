@@ -31,6 +31,7 @@ Rewritten from the earlier prototype. Everything below works end to end and was 
 | Dashboard: category ribbon, daily/monthly chart, 12-month trend, budgets, recurring, top merchants, largest | Done |
 | AI period summary (aggregates only) | Done |
 | Settings: Ollama / Gemini / OpenAI, model, key (encrypted), test connection, currency | Done |
+| Backup & restore | Done. One `.spence` file (DB + keys + manifest), daily automatic backups (7 kept per kind), a backup before every restore and schema update, optional copy folder, restore from file or from the saved list (Settings) |
 | Tests | 38 xUnit tests: text helpers, date resolution, recurring detection, full import flow with a fake LLM |
 | CI | GitHub Actions: build, test, lint, web build |
 
@@ -55,7 +56,7 @@ Rewritten from the earlier prototype. Everything below works end to end and was 
 2. OCR fallback for scanned PDFs: render pages to images and use a vision model.
 3. Deterministic CSV import: detect columns (date/description/debit/credit) and skip the LLM for parsing; use AI only for categorization. Faster and exact.
 4. Accounts: tag transactions with the card or bank account they came from; filter by account.
-5. Backup & restore: one-click export/import of the whole DB file; optional scheduled copy to a synced folder (OneDrive or Dropbox).
+5. ~~Backup & restore~~ (done 2026-11-14).
 
 **Then: make it insightful**
 6. Ask your expenses: chat with tool-calling over safe query functions ("how much on food delivery since June?").
@@ -98,3 +99,4 @@ Append-only. Format: `YYYY-MM-DD: Decision. Why. (Alternatives rejected.)`
 - 2026-11-14: **Two keys per row, longest rule wins.** General key = 2 words of the merchant ("AMAZON PAY"); specific key = 4 words of the printed description ("AMAZON PAY AMAZONPAYBILL"). New rules go on the general key; overriding a rule on one row adds an exception on the specific key; if every row a rule decided gets the same fix, the rule itself is updated. The key drops ref numbers/hashes (3+ digits), rail words (UPI, NEFT, "Request fr") and bank names, but keeps a UPI handle's name, which identifies the payee best. (Always learning on the long key rejected: rules would rarely match again.)
 - 2026-11-14: **Rule hints in the prompt only for merchants already in the chunk.** A rule's pattern is sent only if all its words appear in the text being sent, so hints add no data the statement wasn't already sending to a cloud provider. Rules still override the AI after extraction; hints help near-misses.
 - 2026-11-14: **Ollama requests ask for a 16k context (`num_ctx`).** Ollama defaulted qwen2.5:7b to 4096 tokens and silently cut the start of any longer prompt (the instructions and most of the statement), so a bank statement came back with only its last 7 rows. A reply cut off for length is now an error, not a partial import.
+- 2026-11-14: **Backups are a zip of a `VACUUM INTO` copy + Data Protection keys + manifest.** Consistent while the app runs, one file to move around. Keys are included so the saved API key survives a restore on the same Windows user (they're DPAPI-bound, so on another machine the key is asked for again). A restore validates the file (zip, manifest, integrity check, not from a newer schema), refuses during an import, backs up the current data first, then swaps the DB file and migrates. Backups aren't encrypted yet; a passphrase is an open question for synced folders. (Copying the live .db file rejected: can be torn mid-write.)

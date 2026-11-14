@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261114011404_DirectionalRules";
+    public override string LastMigrationId => "20261114142210_BackupSettings";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -36,6 +36,13 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.Property<string>("AiProvider")
                     .IsRequired()
                     .HasMaxLength(16)
+                    .HasColumnType("TEXT");
+
+                b.Property<bool>("AutoBackup")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("BackupCopyFolder")
+                    .HasMaxLength(500)
                     .HasColumnType("TEXT");
 
                 b.Property<string>("Currency")
