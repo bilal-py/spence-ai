@@ -79,8 +79,10 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
   const update = (index: number, patch: Partial<EditableRow>) => setRows((all) => all.map((r) => (r.index === index ? { ...r, ...patch } : r)));
 
   const included = rows.filter((r) => r.include);
-  const spent = included.filter((r) => r.type === 'Expense').reduce((s, r) => s + Number(r.amount || 0), 0);
+  // Spending net of refunds, matching the dashboard.
+  const spent = included.reduce((s, r) => s + (r.type === 'Expense' ? 1 : r.type === 'Refund' ? -1 : 0) * Number(r.amount || 0), 0);
   const duplicates = rows.filter((r) => r.isDuplicate).length;
+  const flagged = rows.filter((r) => r.warning).length;
   const newCategories = [...new Set(included.filter((r) => r.categoryId === null && r.newCategoryName).map((r) => r.newCategoryName!))];
 
   const commit = useMutation({
@@ -127,6 +129,10 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
         <p className="mt-1 text-ink-soft">
           From {fileName}. Fix anything that looks off, untick rows you don't want, then save.
           {duplicates > 0 && ` ${duplicates} look like ${duplicates === 1 ? 'a duplicate' : 'duplicates'} of transactions you already have and are unticked.`}
+          {flagged > 0 &&
+            (flagged === 1
+              ? " 1 has an amount that isn't printed on the statement, so the AI probably misread it. It's unticked; check it against the statement."
+              : ` ${flagged} have amounts that aren't printed on the statement, so the AI probably misread them. They're unticked; check them against the statement.`)}
         </p>
       </header>
 
@@ -174,7 +180,8 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
                   />
                   <p className="mt-1 flex flex-wrap gap-x-2 truncate px-2 text-xs text-ink-faint">
                     {r.merchant && <span className="truncate">{r.description}</span>}
-                    {r.isDuplicate && <span className="font-medium text-ochre">Possible duplicate</span>}
+                    {r.isDuplicate && <span className="font-medium text-ochre">{r.duplicateOf ?? 'Possible duplicate'}</span>}
+                    {r.warning && <span className="font-medium text-brick">{r.warning}</span>}
                     {r.matchedRule && (
                       <span className="inline-flex items-center gap-0.5 text-pine">
                         <Wand2 className="size-3" aria-hidden /> Your rule
@@ -190,11 +197,15 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
                     onChange={(e) => update(r.index, { type: e.target.value as TransactionType })}
                   >
                     <option value="Expense">Expense</option>
+                    <option value="Refund">Refund</option>
                     <option value="Income">Income</option>
                     <option value="Transfer">Transfer</option>
                   </select>
                 </td>
                 <td className="py-2 pr-2 align-top">
+                  {r.type === 'Transfer' ? (
+                    <p className="px-2 pt-1.5 text-sm text-ink-faint">Not counted as spending</p>
+                  ) : (
                   <CategorySelect
                     aria-label="Category"
                     className="field !h-8 px-2 text-sm"
@@ -206,6 +217,7 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
                     onChange={(categoryId) => update(r.index, { categoryId, newCategoryName: null })}
                     onPickNew={() => update(r.index, { categoryId: null, newCategoryName: r.suggestedNew })}
                   />
+                  )}
                 </td>
                 <td className="py-2 pr-4 align-top">
                   <input

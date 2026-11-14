@@ -50,25 +50,28 @@ public class AnalyticsService(IAppDbContext db)
 
         var current = all.Where(t => t.Date >= from && t.Date <= to).ToList();
         var previous = all.Where(t => t.Date >= prevFrom && t.Date <= prevTo).ToList();
+        // Spending is net of refunds: expenses count up, refunds (waivers, cashback, returns) count down.
+        var spending = current.Where(IsSpending).ToList();
+        var prevSpending = previous.Where(IsSpending).ToList();
         var expenses = current.Where(t => t.Type == TransactionType.Expense).ToList();
-        var prevExpenses = previous.Where(t => t.Type == TransactionType.Expense).ToList();
 
-        var spent = expenses.Sum(t => t.Amount);
+        var spent = NetSpent(spending);
         var income = current.Where(t => t.Type == TransactionType.Income).Sum(t => t.Amount);
 
-        var prevByCategory = prevExpenses.GroupBy(t => t.CategoryId).ToDictionary(g => g.Key ?? 0, g => g.Sum(t => t.Amount));
-        var byCategory = expenses
+        var prevByCategory = prevSpending.GroupBy(t => t.CategoryId).ToDictionary(g => g.Key ?? 0, NetSpent);
+        var byCategory = spending
             .GroupBy(t => t.CategoryId)
             .Select(g =>
             {
                 var c = g.First().Category;
                 return new CategoryTotal(g.Key, c?.Name ?? "Uncategorized", c?.Color ?? "#9a9a92", c?.Icon ?? "circle-help",
-                    g.Sum(t => t.Amount), g.Count(), prevByCategory.GetValueOrDefault(g.Key ?? 0), c?.MonthlyBudget);
+                    NetSpent(g), g.Count(t => t.Type == TransactionType.Expense), prevByCategory.GetValueOrDefault(g.Key ?? 0), c?.MonthlyBudget);
             })
+            .Where(c => c.Total > 0)
             .OrderByDescending(c => c.Total)
             .ToList();
 
-        var dailyLookup = expenses.GroupBy(t => t.Date).ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
+        var dailyLookup = spending.GroupBy(t => t.Date).ToDictionary(g => g.Key, NetSpent);
         var daily = Enumerable.Range(0, days)
             .Select(i => from.AddDays(i))
             .Select(d => new DailyPoint(d, dailyLookup.GetValueOrDefault(d)))
@@ -80,15 +83,16 @@ public class AnalyticsService(IAppDbContext db)
             {
                 var inMonth = all.Where(t => t.Date.Year == m.Year && t.Date.Month == m.Month).ToList();
                 return new MonthlyPoint($"{m:yyyy-MM}",
-                    inMonth.Where(t => t.Type == TransactionType.Expense).Sum(t => t.Amount),
+                    NetSpent(inMonth.Where(IsSpending)),
                     inMonth.Where(t => t.Type == TransactionType.Income).Sum(t => t.Amount));
             })
             .ToList();
 
-        var topMerchants = expenses
+        var topMerchants = spending
             .GroupBy(t => MerchantKey.From(t.Merchant ?? t.Description))
             .Where(g => g.Key.Length > 0)
-            .Select(g => new MerchantTotal(g.First().Merchant ?? ToTitle(g.Key), g.Sum(t => t.Amount), g.Count()))
+            .Select(g => new MerchantTotal(g.First().Merchant ?? ToTitle(g.Key), NetSpent(g), g.Count(t => t.Type == TransactionType.Expense)))
+            .Where(m => m.Total > 0)
             .OrderByDescending(m => m.Total)
             .Take(8)
             .ToList();
@@ -100,7 +104,7 @@ public class AnalyticsService(IAppDbContext db)
             .ToList();
 
         return new Overview(from, to, spent, income, income - spent, current.Count,
-            prevExpenses.Sum(t => t.Amount),
+            NetSpent(prevSpending),
             previous.Where(t => t.Type == TransactionType.Income).Sum(t => t.Amount),
             days > 0 ? decimal.Round(spent / days, 2) : 0,
             byCategory, daily, monthly, topMerchants, largest,
@@ -136,6 +140,17 @@ public class AnalyticsService(IAppDbContext db)
 
         return result.OrderByDescending(r => r.TypicalAmount).ToList();
     }
+
+    private static bool IsSpending(Transaction t) => t.Type is TransactionType.Expense or TransactionType.Refund;
+
+    /// <summary>Expenses minus refunds.</summary>
+    public static decimal NetSpent(IEnumerable<Transaction> items) =>
+        items.Sum(t => t.Type switch
+        {
+            TransactionType.Expense => t.Amount,
+            TransactionType.Refund => -t.Amount,
+            _ => 0m,
+        });
 
     private static string ToTitle(string key) =>
         string.Join(' ', key.Split(' ').Select(w => w.Length > 1 ? w[0] + w[1..].ToLowerInvariant() : w));

@@ -2,7 +2,8 @@
 
 export const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:5234/api';
 
-export type TransactionType = 'Expense' | 'Income' | 'Transfer';
+/** Refund = money back for earlier spending (waiver, cashback, return); it reduces spending in its category. */
+export type TransactionType = 'Expense' | 'Income' | 'Transfer' | 'Refund';
 export type TransactionSource = 'Manual' | 'Pdf' | 'Image' | 'Csv';
 export type ImportStatus = 'Queued' | 'Processing' | 'ReadyForReview' | 'Committed' | 'Failed' | 'Discarded';
 export type AiProvider = 'Ollama' | 'Gemini' | 'OpenAI';
@@ -70,9 +71,11 @@ export type CategoryInput = Pick<Category, 'name' | 'color' | 'icon' | 'kind' | 
 export interface Rule {
   id: number;
   pattern: string;
-  categoryId: number;
-  categoryName: string;
-  categoryColor: string;
+  categoryId: number | null;
+  categoryName: string | null;
+  categoryColor: string | null;
+  /** Only ever 'Transfer' today: "this merchant is a card payment / own-account move". */
+  type: TransactionType | null;
 }
 
 export interface StagedRow {
@@ -87,6 +90,10 @@ export interface StagedRow {
   isDuplicate: boolean;
   include: boolean;
   matchedRule: string | null;
+  /** Set when the row looks wrong, e.g. its amount isn't printed on the statement. */
+  warning: string | null;
+  /** Why it looks like a duplicate, e.g. "Already saved from an import on 13 Nov". */
+  duplicateOf: string | null;
 }
 
 export interface ImportBatch {
@@ -163,9 +170,12 @@ export interface SettingsInput {
 
 export class ApiError extends Error {
   readonly status: number;
-  constructor(message: string, status: number) {
+  /** Machine-readable reason from ProblemDetails, e.g. 'pdf_password_required'. */
+  readonly code: string | null;
+  constructor(message: string, status: number, code: string | null = null) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -179,13 +189,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let message = `Request failed (${response.status}).`;
+    let code: string | null = null;
     try {
       const body = await response.json();
       message = body.detail ?? body.title ?? message;
+      code = body.code ?? null;
     } catch {
       /* non-JSON error body: keep the generic message */
     }
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, code);
   }
 
   if (response.status === 204) return undefined as T;
@@ -232,9 +244,11 @@ export const api = {
   imports: {
     list: () => request<ImportBatch[]>('/imports'),
     get: (id: string) => request<ImportBatch>(`/imports/${id}`),
-    upload: (file: File) => {
+    /** `password` is only for locked PDFs; the API uses it once to read the file and never stores it. */
+    upload: (file: File, password?: string) => {
       const form = new FormData();
       form.append('file', file);
+      if (password) form.append('password', password);
       return request<ImportBatch>('/imports', { method: 'POST', body: form });
     },
     commit: (id: string, rows: CommitRow[]) => request<ImportBatch>(`/imports/${id}/commit`, json('POST', { rows })),

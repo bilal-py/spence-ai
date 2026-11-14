@@ -21,15 +21,17 @@ Rewritten from the earlier prototype. Everything below works end to end and was 
 | Area | Status |
 | --- | --- |
 | Import: PDF (text), CSV, images (vision models) | Done. Background queue, chunking, structured output |
-| Review screen: edit, untick, duplicates flagged, new categories | Done |
+| Review screen: edit, untick, duplicates flagged, new categories | Done. Amounts not printed on the statement are flagged and unticked |
 | Undo a committed import | Done |
-| Learned merchant rules | Done. Created automatically from review corrections, or "always use this category" in the editor |
+| Learned merchant rules | Done. Created automatically from review corrections (category, or "this is a transfer"), or "always use this category" in the editor |
+| Refunds and card payments | Done. `Refund` type nets against spending; card bill payments are transfers |
+| Password-protected PDFs | Done. Password asked at upload, used once, never stored |
 | Manual add/edit/delete, bulk recategorize/delete, search, filters, CSV export | Done |
 | Categories: templates seeded, CRUD, icon, color, monthly budget | Done |
 | Dashboard: category ribbon, daily/monthly chart, 12-month trend, budgets, recurring, top merchants, largest | Done |
 | AI period summary (aggregates only) | Done |
 | Settings: Ollama / Gemini / OpenAI, model, key (encrypted), test connection, currency | Done |
-| Tests | 26 xUnit tests: text helpers, date resolution, recurring detection, full import flow with a fake LLM |
+| Tests | 38 xUnit tests: text helpers, date resolution, recurring detection, full import flow with a fake LLM |
 | CI | GitHub Actions: build, test, lint, web build |
 
 **Known limits**
@@ -87,3 +89,8 @@ Append-only. Format: `YYYY-MM-DD: Decision. Why. (Alternatives rejected.)`
 - 2026-11-14: Upgraded to **.NET 11 / EF Core 11**. Clears the vulnerable OpenApi and SQLitePCL package warnings.
 - 2026-11-14: **Frontend rewritten in TypeScript** with TanStack Query and Tailwind 4 tokens. Hand-built components rather than shadcn, to keep a distinct look and few dependencies. Self-hosted fonts, so it works offline.
 - 2026-11-14: Minimal APIs only (MVC controllers removed); repositories removed in favor of `IAppDbContext`.
+- 2026-11-14: **`Refund` transaction type.** Credits on a card statement (refunds, reversals, cashback, fee/surcharge waivers) are not income. A refund keeps the spending category of what it reverses and is subtracted from spending in analytics (spending = expenses − refunds). The starter "Refunds" income category was dropped from new installs.
+- 2026-11-14: **Card bill payments are transfers on both statements** (the bank debit and the card credit), so they're excluded from spending and income and nothing is double-counted. Card spending comes from the card statement's line items. Rules learn "this merchant is a transfer"; other type changes aren't learned because refunds and purchases share merchants.
+- 2026-11-14: **Amounts are checked against the statement text.** If the model's amount isn't printed in the chunk it read (e.g. it merged a purchase and its waiver), the row is flagged and unticked. If every printed occurrence is marked as a credit (`+`, `Cr`), an "expense" becomes a refund. Ground truth beats the model.
+- 2026-11-14: **PDFs are read to text at upload.** Lets a locked PDF ask for its password synchronously (error code `pdf_password_required`). The password is used once and never stored; only the extracted text is queued on disk, and it's deleted after processing.
+- 2026-11-14: **Duplicate check matches date + amount + description, not type, one saved row per staged row**, and says what it matched ("Already saved from an import on 13 Nov"). Its job is catching re-imported or overlapping statements; a bank CSV and a card PDF don't overlap because the card payment is a transfer.

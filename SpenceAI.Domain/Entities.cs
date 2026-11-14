@@ -5,6 +5,8 @@ public enum TransactionType
     Expense,
     Income,
     Transfer,
+    /// <summary>Money given back for earlier spending (refund, reversal, cashback, fee waiver). Offsets spending in its category.</summary>
+    Refund,
 }
 
 public enum TransactionSource
@@ -72,13 +74,17 @@ public class Category
     public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
 }
 
-/// <summary>Learned "merchant key → category" mapping, applied before (and over) the AI's guess.</summary>
+/// <summary>
+/// Learned "merchant key → category and/or type" mapping, applied before (and over) the AI's guess.
+/// Type is only learned for transfers (e.g. a card bill payment), since refunds and purchases share merchants.
+/// </summary>
 public class MerchantRule
 {
     public int Id { get; set; }
     public string Pattern { get; set; } = string.Empty;
-    public int CategoryId { get; set; }
+    public int? CategoryId { get; set; }
     public Category? Category { get; set; }
+    public TransactionType? Type { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

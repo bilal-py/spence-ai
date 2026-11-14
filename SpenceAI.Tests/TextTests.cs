@@ -113,8 +113,38 @@ public class ExtractorHelperTests
     [InlineData(ExtractedKind.expense, TransactionType.Expense)]
     [InlineData(ExtractedKind.income, TransactionType.Income)]
     [InlineData(ExtractedKind.transfer, TransactionType.Transfer)]
+    [InlineData(ExtractedKind.refund, TransactionType.Refund)]
     public void Maps_types(ExtractedKind value, TransactionType expected) =>
         Assert.Equal(expected, TransactionExtractor.ParseType(value));
+}
+
+public class AmountCheckTests
+{
+    [Theory]
+    [InlineData("SUPREME PETROLEUM ₹ 404.00", 404, AmountEvidence.Found)]
+    [InlineData("PETRO SURCHARGE WAIVER + ₹ 4.00", 4, AmountEvidence.FoundAsCredit)]
+    [InlineData("PAYMENT RECEIVED 1,960.00 Cr", 1960, AmountEvidence.FoundAsCredit)]
+    [InlineData("REFUND +Rs. 1,23,456.78", 123456.78, AmountEvidence.FoundAsCredit)]
+    [InlineData("SUPREME PETROLEUM ₹ 404.00", 408, AmountEvidence.NotFound)]
+    [InlineData("FEE 4.06", 4, AmountEvidence.NotFound)]
+    [InlineData("A ₹ 4.00\nB + ₹ 4.00", 4, AmountEvidence.Found)]
+    public void Reads_the_printed_amount_and_sign(string text, double amount, AmountEvidence expected) =>
+        Assert.Equal(expected, AmountCheck.Check(text, (decimal)amount));
+
+    [Theory]
+    [InlineData("PETRO SURCHARGE WAIVER +  4.00")] // rupee sign extracted as a private-use glyph
+    [InlineData("PETRO SURCHARGE WAIVER +` 4.00")]
+    [InlineData("PETRO SURCHARGE WAIVER +4.00")]
+    public void Reads_a_plus_whatever_the_currency_glyph(string text) =>
+        Assert.Equal(AmountEvidence.FoundAsCredit, AmountCheck.Check(text, 4m));
+
+    [Fact]
+    public void Reads_the_sign_from_the_descriptions_own_line()
+    {
+        const string statement = "Reward points earned 4.00\n03/11/2026 SUPREME PETROLEUMKANPUR NAGAR ₹ 404.00\n03/11/2026 PETRO SURCHARGE WAIVER + ₹ 4.00\n";
+        Assert.Equal(AmountEvidence.FoundAsCredit, AmountCheck.Check(statement, 4m, "PETRO SURCHARGE WAIVER"));
+        Assert.Equal(AmountEvidence.Found, AmountCheck.Check(statement, 404m, "SUPREME PETROLEUMKANPUR NAGAR"));
+    }
 }
 
 public class RecurringTests

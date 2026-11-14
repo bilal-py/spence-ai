@@ -13,29 +13,29 @@ public class TransactionExtractor
 
     private static readonly ChatOptions Options = new() { Temperature = 0 };
 
-    public async Task<List<ExtractedTransaction>> FromTextChunksAsync(
-        IChatClient client, IReadOnlyList<string> chunks, IReadOnlyCollection<string> categoryNames, CancellationToken ct)
+    public async Task<List<ExtractedWithSource>> FromTextChunksAsync(
+        IChatClient client, IReadOnlyList<string> chunks, IReadOnlyCollection<Category> categories, CancellationToken ct)
     {
-        var all = new List<ExtractedTransaction>();
+        var all = new List<ExtractedWithSource>();
         foreach (var chunk in chunks)
         {
             var messages = new List<ChatMessage>
             {
-                new(ChatRole.System, SystemPrompt(categoryNames)),
+                new(ChatRole.System, SystemPrompt(categories)),
                 new(ChatRole.User, $"<statement>\n{chunk}\n</statement>"),
             };
-            all.AddRange(await AskAsync(client, messages, ct));
+            all.AddRange((await AskAsync(client, messages, ct)).Select(t => new ExtractedWithSource(t, chunk)));
         }
 
         return all;
     }
 
-    public Task<List<ExtractedTransaction>> FromImageAsync(
-        IChatClient client, byte[] image, string mediaType, IReadOnlyCollection<string> categoryNames, CancellationToken ct)
+    public async Task<List<ExtractedWithSource>> FromImageAsync(
+        IChatClient client, byte[] image, string mediaType, IReadOnlyCollection<Category> categories, CancellationToken ct)
     {
         var messages = new List<ChatMessage>
         {
-            new(ChatRole.System, SystemPrompt(categoryNames)),
+            new(ChatRole.System, SystemPrompt(categories)),
             new(ChatRole.User,
             [
                 new TextContent(
@@ -44,7 +44,7 @@ public class TransactionExtractor
                 new DataContent(image, mediaType),
             ]),
         };
-        return AskAsync(client, messages, ct);
+        return (await AskAsync(client, messages, ct)).Select(t => new ExtractedWithSource(t, null)).ToList();
     }
 
     private static async Task<List<ExtractedTransaction>> AskAsync(IChatClient client, List<ChatMessage> messages, CancellationToken ct)
@@ -58,23 +58,39 @@ public class TransactionExtractor
         return result.Transactions;
     }
 
-    private static string SystemPrompt(IReadOnlyCollection<string> categoryNames) => $"""
-        You extract financial transactions from bank statements, credit card statements, CSV exports and receipts.
+    private static string SystemPrompt(IReadOnlyCollection<Category> categories)
+    {
+        var spending = string.Join(", ", categories.Where(c => c.Kind != TransactionType.Income).Select(c => c.Name));
+        var income = string.Join(", ", categories.Where(c => c.Kind == TransactionType.Income).Select(c => c.Name));
+        return $"""
+            You extract financial transactions from bank statements, credit card statements, CSV exports and receipts.
 
-        Rules:
-        - Return every real transaction exactly once. Skip opening/closing balances, totals, subtotals, interest-rate tables, reward points and marketing text.
-        - Date: yyyy-MM-dd. If the year isn't printed next to the transaction, infer it from the statement period.
-        - Amount: always a positive number without currency symbols or thousands separators.
-        - Type:
-          - "expense" for purchases, bills, fees, charges and withdrawals.
-          - "income" for salary, interest earned, refunds, cashback and incoming transfers from other people.
-          - "transfer" for credit card bill payments ("PAYMENT THANK YOU", "AUTOPAY") and moves between the user's own accounts.
-          - Amounts in a Credit / Deposit column, or marked CR, are money coming in: income, or transfer if it's a card payment.
-        - Merchant: a short, clean name (e.g. "UBER *TRIP HELP.UBER.COM" -> "Uber").
-        - Category: pick the closest name from this list, spelled exactly: {string.Join(", ", categoryNames)}.
-          Only if nothing fits, propose a short new category name (1-2 words, sentence case).
-        - If there are no transactions, return an empty list.
-        """;
+            Rules:
+            - One transaction per printed transaction line. Never merge lines, never add or subtract amounts from different lines,
+              even when two lines belong together (e.g. a fuel purchase and its surcharge waiver are two separate transactions).
+            - Skip opening/closing balances, totals, subtotals, minimum due, interest-rate tables, reward points and marketing text.
+            - Date: yyyy-MM-dd. If the year isn't printed next to the transaction, infer it from the statement period.
+            - Amount: exactly as printed on that line, as a positive number without currency symbols or thousands separators.
+            - Direction: an amount with a leading "+", a trailing "CR"/"Cr", or in a Credit / Deposit column is money coming in.
+              Everything else on a credit card statement is money going out.
+            - Type:
+              - "expense": purchases, bills, fees, charges, withdrawals.
+              - "refund": money given back for earlier spending: refunds, reversals, cashback, chargebacks, fee or surcharge waivers.
+              - "income": salary, interest earned, dividends, money received from other people.
+              - "transfer": paying a credit card bill or moving money between the user's own accounts. On a card statement this is the
+                payment received line (e.g. "PAYMENT THANK YOU", "AUTOPAY", "BPPY PYMT", "BBPS PAYMENT", "BILLDESK", "NEFT PAYMENT RECEIVED").
+                On a bank statement it's the card bill payment (e.g. "CC PAYMENT", "CREDIT CARD BILL", a card number, "CRED") or a
+                transfer to the user's own account.
+            - Merchant: a short, clean name (e.g. "UBER *TRIP HELP.UBER.COM" -> "Uber").
+            - Category, spelled exactly as listed:
+              - expense and refund: one of {spending}. A refund takes the category of the spending it reverses
+                (a fuel surcharge waiver is Fuel).
+              - income: one of {income}.
+              - transfer: null.
+              Only if nothing fits, propose a short new category name (1-2 words, sentence case).
+            - If there are no transactions, return an empty list.
+            """;
+    }
 
     // ---- Chunking helpers ----
 
@@ -196,6 +212,7 @@ public class TransactionExtractor
     {
         ExtractedKind.income => TransactionType.Income,
         ExtractedKind.transfer => TransactionType.Transfer,
+        ExtractedKind.refund => TransactionType.Refund,
         _ => TransactionType.Expense,
     };
 }

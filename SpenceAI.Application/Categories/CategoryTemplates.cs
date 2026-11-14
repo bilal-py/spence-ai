@@ -24,7 +24,6 @@ public static class CategoryTemplates
         ("Gifts & donations", "gift", "#c7653f", TransactionType.Expense),
         ("Fees & charges", "badge-percent", "#7d7468", TransactionType.Expense),
         ("Salary", "briefcase", "#2f7d4f", TransactionType.Income),
-        ("Refunds", "rotate-ccw", "#4f8fbf", TransactionType.Income),
         ("Other income", "circle-plus", "#6f9f3f", TransactionType.Income),
     ];
 

@@ -214,7 +214,8 @@ function Rules() {
     <section>
       <SectionTitle>Learned rules</SectionTitle>
       <p className="mb-4 text-sm text-ink-soft">
-        When you change the category of an imported transaction, Spence remembers it for that merchant and applies it before asking the AI next time.
+        When you change the category of an imported transaction, or mark it as a transfer, Spence remembers it for that merchant and applies it before
+        asking the AI next time.
       </p>
       <ErrorNote error={rules.error ?? remove.error} />
       {rules.data?.length === 0 && (
@@ -229,10 +230,13 @@ function Rules() {
             <span className="text-ink-faint" aria-hidden>
               to
             </span>
-            <span className="flex min-w-0 items-center gap-1.5 truncate text-sm">
-              <span className="size-2 shrink-0 rounded-full" style={{ background: r.categoryColor }} />
-              {r.categoryName}
-            </span>
+            {r.type === 'Transfer' && <span className="text-sm">Transfer</span>}
+            {r.categoryName && (
+              <span className="flex min-w-0 items-center gap-1.5 truncate text-sm">
+                <span className="size-2 shrink-0 rounded-full" style={{ background: r.categoryColor ?? undefined }} />
+                {r.categoryName}
+              </span>
+            )}
             <button aria-label={`Delete rule ${r.pattern}`} onClick={() => remove.mutate(r.id)} className="ml-auto rounded p-1.5 text-ink-faint hover:bg-sunken hover:text-brick">
               <Trash2 className="size-3.5" />
             </button>

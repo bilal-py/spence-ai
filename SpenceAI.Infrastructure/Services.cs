@@ -6,6 +6,7 @@ using OpenAI;
 using SpenceAI.Application;
 using SpenceAI.Domain;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.Exceptions;
 
 namespace SpenceAI.Infrastructure;
 
@@ -72,11 +73,12 @@ public class ChatClientFactory(IHttpClientFactory httpFactory) : IChatClientFact
 
 public class PdfTextExtractor : IPdfTextExtractor
 {
-    public IReadOnlyList<string> ExtractPages(Stream pdf)
+    public IReadOnlyList<string> ExtractPages(Stream pdf, string? password = null)
     {
         try
         {
-            using var document = PdfDocument.Open(pdf);
+            var options = string.IsNullOrEmpty(password) ? new ParsingOptions() : new ParsingOptions { Password = password };
+            using var document = PdfDocument.Open(pdf, options);
             // Layout-aware text keeps table rows on one line, which helps the model pair dates and amounts.
             return document.GetPages()
                 .Select(p => UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor.ContentOrderTextExtractor.GetText(p))
@@ -84,9 +86,14 @@ public class PdfTextExtractor : IPdfTextExtractor
         }
         catch (Exception ex) when (ex is not AppException)
         {
-            throw new AppException(ex.Message.Contains("password", StringComparison.OrdinalIgnoreCase)
-                ? "This PDF is password-protected. Save an unlocked copy and upload that."
-                : "This file couldn't be read as a PDF.");
+            if (ex is PdfDocumentEncryptedException || ex.Message.Contains("password", StringComparison.OrdinalIgnoreCase))
+            {
+                throw string.IsNullOrEmpty(password)
+                    ? new AppException("This PDF is password-protected. Enter its password to read it.", 400, ErrorCodes.PdfPasswordRequired)
+                    : new AppException("That password didn't open the PDF. Try again.", 400, ErrorCodes.PdfPasswordIncorrect);
+            }
+
+            throw new AppException("This file couldn't be read as a PDF.");
         }
     }
 }

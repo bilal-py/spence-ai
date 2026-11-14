@@ -19,6 +19,7 @@ public enum ExtractedKind
     expense,
     income,
     transfer,
+    refund,
 }
 
 public class ExtractedTransaction
@@ -29,7 +30,7 @@ public class ExtractedTransaction
     [Description("The date exactly as printed in the source, e.g. '03/11/2026' or '18 Apr'")]
     public required string DatePrinted { get; set; }
 
-    [Description("Absolute amount as a positive number, no currency symbols")]
+    [Description("The amount exactly as printed on this one line, as a positive number without currency symbols. Never add or combine amounts from different lines.")]
     public required decimal Amount { get; set; }
 
     public required ExtractedKind Type { get; set; }
@@ -44,6 +45,9 @@ public class ExtractedTransaction
     public required string? Category { get; set; }
 }
 
+/// <summary>An extracted transaction plus the statement text it came from (null for images), used to check its amount.</summary>
+public record ExtractedWithSource(ExtractedTransaction Item, string? SourceText);
+
 // ---- What the review screen works with ----
 
 public record StagedRow(
@@ -57,7 +61,9 @@ public record StagedRow(
     string? NewCategoryName,
     bool IsDuplicate,
     bool Include,
-    string? MatchedRule);
+    string? MatchedRule,
+    string? Warning = null,
+    string? DuplicateOf = null);
 
 public record ImportBatchDto(
     Guid Id,

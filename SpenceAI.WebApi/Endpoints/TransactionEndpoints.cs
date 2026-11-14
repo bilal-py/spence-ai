@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using SpenceAI.Application;
+using SpenceAI.Application.Analytics;
 using SpenceAI.Domain;
 
 namespace SpenceAI.WebApi.Endpoints;
@@ -58,7 +59,7 @@ public static class TransactionEndpoints
         return new TransactionPage(
             sorted.Skip((page - 1) * pageSize).Take(pageSize).Select(ToDto).ToList(),
             items.Count, page, pageSize,
-            items.Where(t => t.Type == TransactionType.Expense).Sum(t => t.Amount),
+            AnalyticsService.NetSpent(items),
             items.Where(t => t.Type == TransactionType.Income).Sum(t => t.Amount));
     }
 

@@ -35,7 +35,8 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
     };
 
     context.Response.StatusCode = status;
-    await Results.Problem(detail: detail, statusCode: status).ExecuteAsync(context);
+    var extensions = error is AppException { Code: { } code } ? new Dictionary<string, object?> { ["code"] = code } : null;
+    await Results.Problem(detail: detail, statusCode: status, extensions: extensions).ExecuteAsync(context);
 }));
 
 using (var scope = app.Services.CreateScope())

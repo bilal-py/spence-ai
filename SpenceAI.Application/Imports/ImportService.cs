@@ -40,7 +40,11 @@ public class ImportService(
 
     // ---------- Upload ----------
 
-    public async Task<ImportBatchDto> CreateAsync(string fileName, long length, Stream content, CancellationToken ct)
+    /// <summary>
+    /// Stores the upload for the background worker. PDFs are read to text right here, so a locked PDF can ask for its
+    /// password up front and only the extracted text (never the PDF or the password) touches the disk.
+    /// </summary>
+    public async Task<ImportBatchDto> CreateAsync(string fileName, long length, Stream content, CancellationToken ct, string? password = null)
     {
         if (length == 0) throw new AppException("The file is empty.");
         if (length > MaxFileBytes) throw new AppException("Files must be 20 MB or smaller.");
@@ -50,7 +54,24 @@ public class ImportService(
         }
 
         var batch = new ImportBatch { FileName = Path.GetFileName(fileName), Source = kind.Source };
-        await files.SaveAsync(batch.Id, content, ct);
+
+        if (kind.Source == TransactionSource.Pdf)
+        {
+            var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, ct);
+            buffer.Position = 0;
+            var pages = pdf.ExtractPages(buffer, password);
+            if (pages.All(string.IsNullOrWhiteSpace))
+            {
+                throw new AppException("This PDF has no readable text (it's probably a scan). Upload a photo or screenshot of it instead.");
+            }
+
+            await files.SaveAsync(batch.Id, new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(pages, Json)), ct);
+        }
+        else
+        {
+            await files.SaveAsync(batch.Id, content, ct);
+        }
 
         db.ImportBatches.Add(batch);
         await db.SaveChangesAsync(ct);
@@ -75,29 +96,23 @@ public class ImportService(
             connection = await settings.GetConnectionAsync(ct);
             var client = await settings.CreateChatClientAsync(ct);
             var categories = await db.Categories.AsNoTracking().ToListAsync(ct);
-            var categoryNames = categories.Select(c => c.Name).ToList();
             var bytes = await files.ReadAsync(batchId, ct);
 
-            List<ExtractedTransaction> extracted;
+            List<ExtractedWithSource> extracted;
             switch (batch.Source)
             {
                 case TransactionSource.Pdf:
-                    var pages = pdf.ExtractPages(new MemoryStream(bytes));
-                    if (pages.All(string.IsNullOrWhiteSpace))
-                    {
-                        throw new AppException("This PDF has no readable text (it's probably a scan). Upload a photo or screenshot of it instead.");
-                    }
-                    extracted = await extractor.FromTextChunksAsync(client, TransactionExtractor.ChunkPages(pages), categoryNames, ct);
+                    extracted = await extractor.FromTextChunksAsync(client, TransactionExtractor.ChunkPages(ReadPages(bytes)), categories, ct);
                     break;
 
                 case TransactionSource.Csv:
                     var csv = Encoding.UTF8.GetString(bytes);
-                    extracted = await extractor.FromTextChunksAsync(client, TransactionExtractor.ChunkCsv(csv), categoryNames, ct);
+                    extracted = await extractor.FromTextChunksAsync(client, TransactionExtractor.ChunkCsv(csv), categories, ct);
                     break;
 
                 default:
                     var mediaType = Supported[Path.GetExtension(batch.FileName)].MediaType;
-                    extracted = await extractor.FromImageAsync(client, bytes, mediaType, categoryNames, ct);
+                    extracted = await extractor.FromImageAsync(client, bytes, mediaType, categories, ct);
                     break;
             }
 
@@ -124,36 +139,57 @@ public class ImportService(
         await db.SaveChangesAsync(CancellationToken.None);
     }
 
-    private async Task<List<StagedRow>> StageAsync(List<ExtractedTransaction> extracted, List<Category> categories, CancellationToken ct)
+    /// <summary>PDF batches store extracted page text as JSON; batches queued before that change still hold the raw PDF.</summary>
+    private IReadOnlyList<string> ReadPages(byte[] bytes) =>
+        bytes.AsSpan().StartsWith("%PDF"u8)
+            ? pdf.ExtractPages(new MemoryStream(bytes))
+            : JsonSerializer.Deserialize<List<string>>(bytes, Json) ?? [];
+
+    private async Task<List<StagedRow>> StageAsync(List<ExtractedWithSource> extracted, List<Category> categories, CancellationToken ct)
     {
         var byName = categories.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
+        var byId = categories.ToDictionary(c => c.Id);
         var rules = await db.MerchantRules.AsNoTracking().ToListAsync(ct);
 
-        var dates = TransactionExtractor.ResolveDates(extracted);
+        var dates = TransactionExtractor.ResolveDates(extracted.Select(e => e.Item).ToList());
         var parsed = extracted
-            .Select((e, i) => (Item: e, Date: dates[i], Type: TransactionExtractor.ParseType(e.Type), Amount: Math.Abs(decimal.Round(e.Amount, 2))))
+            .Select((e, i) => (e.Item, e.SourceText, Date: dates[i], Type: TransactionExtractor.ParseType(e.Item.Type), Amount: Math.Abs(decimal.Round(e.Item.Amount, 2))))
             .Where(p => p.Amount != 0 && p.Date is not null)
-            .Select(p => (p.Item, Date: p.Date!.Value, p.Type, p.Amount))
+            .Select(p => (p.Item, p.SourceText, Date: p.Date!.Value, p.Type, p.Amount))
             .ToList();
 
-        // Fingerprints of transactions already saved in the same date range → duplicates.
-        var existing = new HashSet<string>();
+        // Transactions already saved in the same date range, keyed by date + amount + description (not type: a row
+        // saved as an expense and re-imported as a transfer is still the same money). Each saved transaction can
+        // match only one staged row, so two genuinely identical charges on a statement aren't both flagged.
+        var existing = new Dictionary<string, Queue<Transaction>>();
         if (parsed.Count > 0)
         {
             var min = parsed.Min(p => p.Date);
             var max = parsed.Max(p => p.Date);
-            existing = (await db.Transactions.AsNoTracking()
-                    .Where(t => t.Date >= min && t.Date <= max)
-                    .Select(t => t.Fingerprint)
-                    .ToListAsync(ct))
-                .ToHashSet();
+            var saved = await db.Transactions.AsNoTracking()
+                .Include(t => t.ImportBatch)
+                .Where(t => t.Date >= min && t.Date <= max)
+                .ToListAsync(ct);
+            foreach (var t in saved.OrderBy(t => t.Id))
+            {
+                var k = DuplicateKey(t.Date, t.Amount, t.Description);
+                if (!existing.TryGetValue(k, out var queue)) existing[k] = queue = new Queue<Transaction>();
+                queue.Enqueue(t);
+            }
         }
 
         var rows = new List<StagedRow>(parsed.Count);
-        foreach (var (item, date, type, amount) in parsed.OrderBy(p => p.Date))
+        foreach (var (item, sourceText, date, aiType, amount) in parsed.OrderBy(p => p.Date))
         {
+            var type = aiType;
             var description = item.Description.Trim();
             var merchant = string.IsNullOrWhiteSpace(item.Merchant) ? null : item.Merchant.Trim();
+
+            // The printed statement is the ground truth for the amount and its sign.
+            string? warning = null;
+            var evidence = sourceText is null ? AmountEvidence.Found : AmountCheck.Check(sourceText, amount, description);
+            if (evidence == AmountEvidence.NotFound) warning = "Amount isn't on the statement";
+            else if (evidence == AmountEvidence.FoundAsCredit && type == TransactionType.Expense) type = TransactionType.Refund;
 
             int? categoryId = null;
             string? newCategory = null;
@@ -165,20 +201,44 @@ public class ImportService(
 
             var key = MerchantKey.From(merchant ?? description);
             var rule = rules.FirstOrDefault(r => MerchantKey.Matches(key, r.Pattern));
-            if (rule is not null)
+            if (rule?.Type is { } ruleType) type = ruleType;
+            if (rule?.CategoryId is { } ruleCategory)
             {
-                categoryId = rule.CategoryId;
+                categoryId = ruleCategory;
                 newCategory = null;
             }
 
-            var isDuplicate = existing.Contains(TransactionFingerprint.Compute(date, amount, type, description));
+            if (type == TransactionType.Transfer)
+            {
+                // Transfers move money between the user's own accounts; they belong to no spending or income category.
+                categoryId = null;
+                newCategory = null;
+            }
+            else if (type == TransactionType.Refund && categoryId is int id && byId.GetValueOrDefault(id)?.Kind == TransactionType.Income)
+            {
+                // A refund offsets spending, so it needs a spending category; leave it for the user to pick.
+                categoryId = null;
+            }
 
+            string? duplicateOf = null;
+            if (existing.TryGetValue(DuplicateKey(date, amount, description), out var matches) && matches.TryDequeue(out var saved))
+            {
+                duplicateOf = saved.ImportBatch is { } from
+                    ? $"Already saved from an import on {from.CreatedAt.ToLocalTime():d MMM}"
+                    : "Already saved (added by hand)";
+            }
+
+            var isDuplicate = duplicateOf is not null;
             rows.Add(new StagedRow(rows.Count, date, amount, type, description, merchant, categoryId, newCategory,
-                isDuplicate, Include: !isDuplicate, MatchedRule: rule?.Pattern));
+                isDuplicate, Include: !isDuplicate && warning is null, MatchedRule: rule?.Pattern, Warning: warning, DuplicateOf: duplicateOf));
         }
 
         return rows;
     }
+
+    private static string DuplicateKey(DateOnly date, decimal amount, string description) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{date:yyyyMMdd}|{decimal.Round(amount, 2):0.00}|{MerchantKey.From(description, maxTokens: 6)}");
 
     // ---------- Review / commit / undo ----------
 
@@ -259,7 +319,8 @@ public class ImportService(
     }
 
     /// <summary>
-    /// When the user picks a different category than the one suggested, remember it for that merchant.
+    /// Remembers corrections per merchant: a different category than the one suggested, or marking a row as a transfer
+    /// (e.g. a card bill payment). Other type changes aren't learned, because refunds and purchases share merchants.
     /// Rows are matched to staged rows by description.
     /// </summary>
     private async Task LearnRulesAsync(List<StagedRow> staged, IReadOnlyList<CommitRow> committed, Dictionary<string, Category> byName, CancellationToken ct)
@@ -275,20 +336,24 @@ public class ImportService(
         {
             if (!suggestions.TryGetValue(row.Description.Trim(), out var suggested)) continue;
 
+            var key = MerchantKey.From(row.Merchant ?? row.Description);
+            if (key.Length == 0) continue;
+            var rule = rules.FirstOrDefault(r => r.Pattern == key);
+
+            // Type: learn "this merchant is a transfer"; forget it when the user says otherwise.
+            var learnTransfer = row.Type != suggested.Type && row.Type == TransactionType.Transfer;
+            var forgetType = row.Type != suggested.Type && row.Type != TransactionType.Transfer && rule?.Type is not null;
+
+            // Category: learn it when the user picked something other than the suggestion.
             Category? chosen = row.CategoryId is int id
                 ? byId.GetValueOrDefault(id)
                 : row.NewCategoryName is { } name ? byName.GetValueOrDefault(name.Trim()) : null;
-            if (chosen is null) continue;
+            var learnCategory = chosen is not null && row.Type != TransactionType.Transfer && (chosen.Id > 0
+                ? chosen.Id != suggested.CategoryId
+                : !string.Equals(chosen.Name, suggested.NewCategoryName, StringComparison.OrdinalIgnoreCase));
 
-            var keptSuggestion = chosen.Id > 0
-                ? chosen.Id == suggested.CategoryId
-                : string.Equals(chosen.Name, suggested.NewCategoryName, StringComparison.OrdinalIgnoreCase);
-            if (keptSuggestion) continue;
+            if (!learnTransfer && !forgetType && !learnCategory) continue;
 
-            var key = MerchantKey.From(row.Merchant ?? row.Description);
-            if (key.Length == 0) continue;
-
-            var rule = rules.FirstOrDefault(r => r.Pattern == key);
             if (rule is null)
             {
                 rule = new MerchantRule { Pattern = key };
@@ -296,7 +361,9 @@ public class ImportService(
                 rules.Add(rule);
             }
 
-            rule.Category = chosen;
+            if (learnTransfer) rule.Type = TransactionType.Transfer;
+            if (forgetType) rule.Type = null;
+            if (learnCategory) rule.Category = chosen;
         }
     }
 

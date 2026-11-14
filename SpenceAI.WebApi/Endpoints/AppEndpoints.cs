@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using SpenceAI.Application;
 using SpenceAI.Application.Analytics;
 using SpenceAI.Application.Imports;
@@ -36,10 +37,11 @@ public static class AppEndpoints
         settings.MapGet("/ollama-models", (string url, IChatClientFactory f, CancellationToken ct) => f.ListOllamaModelsAsync(url, ct));
     }
 
-    private static async Task<IResult> Upload(IFormFile file, ImportService imports, CancellationToken ct)
+    /// <param name="password">Only for locked PDFs. Used once to read the file, never stored.</param>
+    private static async Task<IResult> Upload(IFormFile file, [FromForm] string? password, ImportService imports, CancellationToken ct)
     {
         await using var stream = file.OpenReadStream();
-        var batch = await imports.CreateAsync(file.FileName, file.Length, stream, ct);
+        var batch = await imports.CreateAsync(file.FileName, file.Length, stream, ct, password);
         return Results.Accepted($"/api/imports/{batch.Id}", batch);
     }
 }

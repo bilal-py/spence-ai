@@ -105,6 +105,7 @@ function TransactionForm({ tx, onDone }: { tx?: Transaction; onDone: () => void 
         options={[
           { value: 'Expense', label: 'Expense' },
           { value: 'Income', label: 'Income' },
+          { value: 'Refund', label: 'Refund' },
           { value: 'Transfer', label: 'Transfer' },
         ]}
       />

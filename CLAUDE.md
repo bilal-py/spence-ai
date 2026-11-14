@@ -29,26 +29,27 @@ Migrations run automatically on API startup. Starter categories are seeded when 
 
 `WebApi → Infrastructure → Application → Domain`, plus `SpenceAI.Tests` (xUnit).
 
-- **Domain** (`Entities.cs`): `Transaction` (amount always positive; `Type` = Expense/Income/Transfer), `Category` (with `Kind`, `Icon`, optional `MonthlyBudget`), `MerchantRule`, `ImportBatch`, `AppSettings` (single row).
+- **Domain** (`Entities.cs`): `Transaction` (amount always positive; `Type` = Expense/Income/Transfer/Refund; spending = expenses − refunds, transfers count as neither), `Category` (with `Kind`, `Icon`, optional `MonthlyBudget`), `MerchantRule` (category and/or `Type` = Transfer), `ImportBatch`, `AppSettings` (single row).
 - **Application**: `Abstractions.cs` (interfaces + `AppException`), `Text.cs` (`MerchantKey` normalizer, `TransactionFingerprint`), and feature folders: `Imports/` (pipeline), `Analytics/` (overview + AI insights), `Settings/`, `Categories/` (templates/seed).
 - **Infrastructure**: `AppDbContext` (SQLite), `Services.cs` (Data Protection secret protector, `ChatClientFactory`, PdfPig extractor, import file store), `ImportWorker.cs` (channel queue + `BackgroundService`), `DependencyInjection.cs` (`AddSpenceAi`).
 - **WebApi**: minimal APIs only, in `Endpoints/`. `Program.cs` maps `AppException` → ProblemDetails 4xx; everything else → generic 500 (no stack traces to clients).
 
 ### Storage
 
-Everything lives in one data directory: `%LOCALAPPDATA%/SpenceAI` by default, or override it with `Storage:DataDirectory`. That directory holds `spence.db` (SQLite), `keys/` (Data Protection keys, which encrypt the stored AI API key), and `imports/` (uploaded files, deleted once processed). Machine-specific config goes in `SpenceAI.WebApi/appsettings.Local.json` (git-ignored).
+Everything lives in one data directory: `%LOCALAPPDATA%/SpenceAI` by default, or override it with `Storage:DataDirectory`. That directory holds `spence.db` (SQLite), `keys/` (Data Protection keys, which encrypt the stored AI API key), and `imports/` (uploaded files, deleted once processed; a PDF is stored as its extracted text, never the PDF itself). Machine-specific config goes in `SpenceAI.WebApi/appsettings.Local.json` (git-ignored).
 
 SQLite can't aggregate or ORDER BY `decimal`, so analytics and amount sorting are done **in memory** after filtering by date. That's fine for one user's data. Don't "optimize" it back into SQL.
 
 ### Import pipeline (`Imports/ImportService.cs`)
 
 `POST /api/imports` saves the file and an `ImportBatch` (Queued), then enqueues it. `ImportWorker` processes one batch at a time:
-1. Extract: PDF pages (PdfPig) or CSV text are chunked to ~9k chars (the CSV header repeats in each chunk). Images go to the model as `DataContent` (this needs a vision model).
+1. Extract: PDFs are read to page text (PdfPig) at upload, so a locked PDF returns a 400 with `code: pdf_password_required` and the client resends with a `password` form field (used once, never stored). PDF pages or CSV text are chunked to ~9k chars (the CSV header repeats in each chunk). Images go to the model as `DataContent` (this needs a vision model).
 2. `TransactionExtractor` calls `IChatClient.GetResponseAsync<ExtractionResult>` (structured output). **Every property on the extraction DTOs must be `required`**, or the JSON schema has no `required` list and Ollama returns `{}`.
 3. `ResolveDates` picks day-first or month-first per statement from the printed dates (a part >12, then the tightest date span, then machine culture). Don't trust the model's own `Date` for numeric formats.
-4. Categories are matched by name. Unknown names become `NewCategoryName` and are created only on commit. A `MerchantRule` (matched on `MerchantKey`) overrides the AI.
-5. Fingerprints are compared with existing transactions in the date range, so duplicates are flagged and unticked.
-6. Rows are staged as JSON on the batch (`ReadyForReview`). `POST /api/imports/{id}/commit` creates the transactions and **learns rules** wherever the user changed the suggested category. `DELETE /api/imports/{id}` discards a pending batch or undoes a committed one.
+4. `AmountCheck` compares each amount with the chunk text the model read: not printed → `Warning` and unticked (catches merged lines); printed only as a credit (`+`, `Cr`) → an expense becomes a `Refund`.
+5. Categories are matched by name. Unknown names become `NewCategoryName` and are created only on commit. A `MerchantRule` (matched on `MerchantKey`) overrides the AI's category and, for transfers, its type. Transfers get no category.
+6. Fingerprints are compared with existing transactions in the date range, so duplicates are flagged and unticked.
+7. Rows are staged as JSON on the batch (`ReadyForReview`). `POST /api/imports/{id}/commit` creates the transactions and **learns rules** wherever the user changed the suggested category or marked a row as a transfer. `DELETE /api/imports/{id}` discards a pending batch or undoes a committed one.
 
 ### AI providers
 

@@ -1,11 +1,11 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { Camera, FileText, LoaderCircle, Sheet, Undo2, Upload } from 'lucide-react';
+import { Camera, FileText, LoaderCircle, Lock, Sheet, Undo2, Upload } from 'lucide-react';
 import { useRef, useState, type DragEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useToast } from '../components/Toast';
 import { Button, ErrorNote, PageHeader, SectionTitle, Spinner } from '../components/ui';
-import { api, type ImportBatch } from '../lib/api';
+import { api, ApiError, type ImportBatch } from '../lib/api';
 import { keys, useInvalidateMoney, useSettings } from '../lib/hooks';
 
 const ACCEPT = '.pdf,.csv,.txt,.png,.jpg,.jpeg,.webp';
@@ -25,16 +25,28 @@ export default function Import() {
     refetchInterval: (q) => (q.state.data?.some((b) => b.status === 'Queued' || b.status === 'Processing') ? 2000 : false),
   });
 
+  // Password-protected PDFs wait here until the user types their password.
+  const [locked, setLocked] = useState<File[]>([]);
+
   const upload = useMutation({
     mutationFn: async (files: File[]) => {
       const created: ImportBatch[] = [];
-      for (const f of files) created.push(await api.imports.upload(f));
-      return created;
+      const needPassword: File[] = [];
+      for (const f of files) {
+        try {
+          created.push(await api.imports.upload(f));
+        } catch (e) {
+          if (e instanceof ApiError && e.code === 'pdf_password_required') needPassword.push(f);
+          else throw e;
+        }
+      }
+      return { created, needPassword };
     },
-    onSuccess: (created) => {
+    onSuccess: ({ created, needPassword }) => {
       invalidate();
-      if (created.length === 1) navigate(`/import/${created[0].id}`);
-      else toast.show(`Reading ${created.length} files. Each one will be ready to review when it's done.`);
+      setLocked((l) => [...l, ...needPassword]);
+      if (created.length === 1 && needPassword.length === 0) navigate(`/import/${created[0].id}`);
+      else if (created.length > 0) toast.show(`Reading ${created.length} ${created.length === 1 ? 'file' : 'files'}. Each one will be ready to review when it's done.`);
     },
   });
 
@@ -104,6 +116,18 @@ export default function Import() {
         </p>
       </div>
       <ErrorNote error={upload.error} className="mt-4" />
+      {locked.length > 0 && (
+        <Unlock
+          key={`${locked[0].name}-${locked[0].lastModified}`}
+          file={locked[0]}
+          remaining={locked.length - 1}
+          onDone={(batch) => {
+            setLocked((l) => l.slice(1));
+            invalidate();
+            if (batch && locked.length === 1) navigate(`/import/${batch.id}`);
+          }}
+        />
+      )}
 
       <section className="mt-12">
         <SectionTitle>Recent imports</SectionTitle>
@@ -143,6 +167,55 @@ export default function Import() {
         )}
       </section>
     </>
+  );
+}
+
+/** Asks for a locked PDF's password. The password goes to the local API with this one upload and is never stored. */
+function Unlock({ file, remaining, onDone }: { file: File; remaining: number; onDone: (batch: ImportBatch | null) => void }) {
+  const [password, setPassword] = useState('');
+  const unlock = useMutation({
+    mutationFn: () => api.imports.upload(file, password),
+    onSuccess: (batch) => onDone(batch),
+  });
+
+  return (
+    <form
+      className="mt-4 rounded-lg border border-line bg-surface px-5 py-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (password) unlock.mutate();
+      }}
+    >
+      <p className="flex items-center gap-2 font-medium">
+        <Lock className="size-4 text-ochre" aria-hidden /> {file.name} is password-protected
+      </p>
+      <p className="mt-1 text-sm text-ink-soft">
+        Banks often lock statements with something like your date of birth or the last digits of your card. The password is used once to read the file
+        and isn't saved.
+        {remaining > 0 && ` ${remaining} more locked ${remaining === 1 ? 'file' : 'files'} after this one.`}
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <label className="sr-only" htmlFor="pdf-password">
+          Password for {file.name}
+        </label>
+        <input
+          id="pdf-password"
+          type="password"
+          autoComplete="off"
+          autoFocus
+          className="field max-w-xs"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <Button type="submit" variant="primary" busy={unlock.isPending} disabled={!password}>
+          Unlock and read
+        </Button>
+        <Button type="button" variant="ghost" onClick={() => onDone(null)}>
+          Skip
+        </Button>
+      </div>
+      <ErrorNote error={unlock.error} className="mt-3" />
+    </form>
   );
 }
 

@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261113214414_InitialCreate";
+    public override string LastMigrationId => "20261113234925_RefundTypeAndTransferRules";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -145,7 +145,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .ValueGeneratedOnAdd()
                     .HasColumnType("INTEGER");
 
-                b.Property<int>("CategoryId")
+                b.Property<int?>("CategoryId")
                     .HasColumnType("INTEGER");
 
                 b.Property<DateTime>("CreatedAt")
@@ -154,6 +154,10 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.Property<string>("Pattern")
                     .IsRequired()
                     .HasMaxLength(100)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Type")
+                    .HasMaxLength(16)
                     .HasColumnType("TEXT");
 
                 b.HasKey("Id");
@@ -236,8 +240,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.HasOne("SpenceAI.Domain.Category", "Category")
                     .WithMany()
                     .HasForeignKey("CategoryId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
+                    .OnDelete(DeleteBehavior.Cascade);
 
                 b.Navigation("Category");
             });

@@ -145,6 +145,7 @@ export default function Transactions() {
             { value: 'all', label: 'All' },
             { value: 'Expense', label: 'Spent' },
             { value: 'Income', label: 'Received' },
+            { value: 'Refund', label: 'Refunds' },
             { value: 'Transfer', label: 'Transfers' },
           ]}
         />
@@ -159,7 +160,7 @@ export default function Transactions() {
             <span className="num font-medium text-ink">{data.total}</span> transactions
           </span>
           <span>
-            <span className="num font-medium text-ink">{money(data.totalExpense, currency)}</span> spent
+            <span className="num font-medium text-ink">{money(data.totalExpense, currency)}</span> spent{type === undefined && ' after refunds'}
           </span>
           {data.totalIncome > 0 && (
             <span>
@@ -323,8 +324,13 @@ function Row({
           />
         </div>
       </td>
-      <td className={clsx('num pr-4 text-right whitespace-nowrap', tx.type === 'Income' ? 'font-medium text-pine' : tx.type === 'Transfer' ? 'text-ink-faint' : 'font-medium')}>
-        {tx.type === 'Income' ? '+' : tx.type === 'Transfer' ? '⇄ ' : ''}
+      <td
+        className={clsx(
+          'num pr-4 text-right whitespace-nowrap',
+          tx.type === 'Income' || tx.type === 'Refund' ? 'font-medium text-pine' : tx.type === 'Transfer' ? 'text-ink-faint' : 'font-medium',
+        )}
+      >
+        {tx.type === 'Income' || tx.type === 'Refund' ? '+' : tx.type === 'Transfer' ? '⇄ ' : ''}
         {money(tx.amount, currency)}
       </td>
     </tr>
