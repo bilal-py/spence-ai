@@ -66,6 +66,17 @@ export default function ImportReview() {
 interface EditableRow extends StagedRow {
   /** The AI's proposed new category, kept so the user can switch back to it. */
   suggestedNew: string | null;
+  /** What Spence suggested, to tell whether the user corrected the row. */
+  suggested: Pick<StagedRow, 'type' | 'categoryId' | 'newCategoryName'>;
+  /** Learn a rule from this correction (true), or apply it just this once (false). */
+  remember: boolean;
+}
+
+/** True when the user changed the type or category Spence suggested. */
+function isCorrected(r: EditableRow) {
+  if (r.type !== r.suggested.type) return true;
+  if (r.type === 'Transfer') return false;
+  return r.categoryId !== r.suggested.categoryId || (r.categoryId === null && r.newCategoryName !== r.suggested.newCategoryName);
 }
 
 function Review({ id, fileName, initial }: { id: string; fileName: string; initial: StagedRow[] }) {
@@ -74,7 +85,14 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
   const currency = useCurrency();
   const invalidate = useInvalidateMoney();
   const { data: categories = [] } = useCategories();
-  const [rows, setRows] = useState<EditableRow[]>(() => initial.map((r) => ({ ...r, suggestedNew: r.newCategoryName })));
+  const [rows, setRows] = useState<EditableRow[]>(() =>
+    initial.map((r) => ({
+      ...r,
+      suggestedNew: r.newCategoryName,
+      suggested: { type: r.type, categoryId: r.categoryId, newCategoryName: r.newCategoryName },
+      remember: true,
+    })),
+  );
 
   const update = (index: number, patch: Partial<EditableRow>) => setRows((all) => all.map((r) => (r.index === index ? { ...r, ...patch } : r)));
 
@@ -83,6 +101,7 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
   const spent = included.reduce((s, r) => s + (r.type === 'Expense' ? 1 : r.type === 'Refund' ? -1 : 0) * Number(r.amount || 0), 0);
   const duplicates = rows.filter((r) => r.isDuplicate).length;
   const flagged = rows.filter((r) => r.warning).length;
+  const learning = included.filter((r) => r.remember && isCorrected(r)).length;
   const newCategories = [...new Set(included.filter((r) => r.categoryId === null && r.newCategoryName).map((r) => r.newCategoryName!))];
 
   const commit = useMutation({
@@ -97,6 +116,8 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
           merchant: r.merchant,
           categoryId: r.categoryId,
           newCategoryName: r.categoryId === null ? r.newCategoryName : null,
+          index: r.index,
+          remember: r.remember,
         })),
       ),
     onSuccess: (r) => {
@@ -182,10 +203,21 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
                     {r.merchant && <span className="truncate">{r.description}</span>}
                     {r.isDuplicate && <span className="font-medium text-ochre">{r.duplicateOf ?? 'Possible duplicate'}</span>}
                     {r.warning && <span className="font-medium text-brick">{r.warning}</span>}
-                    {r.matchedRule && (
-                      <span className="inline-flex items-center gap-0.5 text-pine">
-                        <Wand2 className="size-3" aria-hidden /> Your rule
+                    {r.matchedRule && !isCorrected(r) && (
+                      <span className="inline-flex items-center gap-0.5 text-pine" title="Set by a rule you taught Spence. Change it here to add an exception.">
+                        <Wand2 className="size-3" aria-hidden /> Your rule: {r.matchedRule}
                       </span>
+                    )}
+                    {isCorrected(r) && (
+                      <button
+                        type="button"
+                        onClick={() => update(r.index, { remember: !r.remember })}
+                        aria-pressed={r.remember}
+                        title={r.remember ? 'Spence will do this for similar transactions next time. Click for just this once.' : 'Only this row changes. Click to remember it.'}
+                        className={clsx('inline-flex items-center gap-0.5 rounded font-medium underline-offset-2 hover:underline', r.remember ? 'text-pine' : 'text-ink-soft')}
+                      >
+                        <Wand2 className="size-3" aria-hidden /> {r.remember ? 'Remember next time' : 'Just this once'}
+                      </button>
                     )}
                   </p>
                 </td>
@@ -241,6 +273,7 @@ function Review({ id, fileName, initial }: { id: string; fileName: string; initi
           <span className="num font-medium text-ink">{included.length}</span> to save,{' '}
           <span className="num font-medium text-ink">{money(spent, currency)}</span> in spending
           {newCategories.length > 0 && <>, new {newCategories.length === 1 ? 'category' : 'categories'}: {newCategories.join(', ')}</>}
+          {learning > 0 && <>, {learning} {learning === 1 ? 'correction' : 'corrections'} to remember</>}
         </p>
         <div className="ml-auto flex gap-2">
           <Button variant="ghost" onClick={() => discard.mutate()} busy={discard.isPending}>

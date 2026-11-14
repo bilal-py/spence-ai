@@ -7,7 +7,7 @@ namespace SpenceAI.WebApi.Endpoints;
 
 public record CategoryDto(int Id, string Name, string Color, string Icon, TransactionType Kind, decimal? MonthlyBudget, int TransactionCount);
 public record UpsertCategoryRequest(string Name, string Color, string Icon, TransactionType Kind, decimal? MonthlyBudget);
-public record RuleDto(int Id, string Pattern, int? CategoryId, string? CategoryName, string? CategoryColor, TransactionType? Type);
+public record RuleDto(int Id, string Pattern, MoneyDirection? Direction, int? CategoryId, string? CategoryName, string? CategoryColor, TransactionType? Type, DateTime UpdatedAt);
 
 public static partial class CategoryEndpoints
 {
@@ -61,7 +61,7 @@ public static partial class CategoryEndpoints
     private static async Task<List<RuleDto>> ListRules(IAppDbContext db, CancellationToken ct) =>
         await db.MerchantRules.AsNoTracking()
             .OrderBy(r => r.Pattern)
-            .Select(r => new RuleDto(r.Id, r.Pattern, r.CategoryId, r.Category == null ? null : r.Category.Name, r.Category == null ? null : r.Category.Color, r.Type))
+            .Select(r => new RuleDto(r.Id, r.Pattern, r.Direction, r.CategoryId, r.Category == null ? null : r.Category.Name, r.Category == null ? null : r.Category.Color, r.Type, r.UpdatedAt))
             .ToListAsync(ct);
 
     private static async Task<IResult> DeleteRule(int id, IAppDbContext db, CancellationToken ct)

@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261113234925_RefundTypeAndTransferRules";
+    public override string LastMigrationId => "20261114011404_DirectionalRules";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -151,6 +151,10 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.Property<DateTime>("CreatedAt")
                     .HasColumnType("TEXT");
 
+                b.Property<string>("Direction")
+                    .HasMaxLength(8)
+                    .HasColumnType("TEXT");
+
                 b.Property<string>("Pattern")
                     .IsRequired()
                     .HasMaxLength(100)
@@ -160,11 +164,14 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(16)
                     .HasColumnType("TEXT");
 
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("TEXT");
+
                 b.HasKey("Id");
 
                 b.HasIndex("CategoryId");
 
-                b.HasIndex("Pattern")
+                b.HasIndex("Pattern", "Direction")
                     .IsUnique();
 
                 b.ToTable("MerchantRules");

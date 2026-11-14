@@ -63,7 +63,9 @@ public record StagedRow(
     bool Include,
     string? MatchedRule,
     string? Warning = null,
-    string? DuplicateOf = null);
+    string? DuplicateOf = null,
+    // Which way the money moved, as read from the statement (before any rule). Rules are learned per direction.
+    MoneyDirection? Direction = null);
 
 public record ImportBatchDto(
     Guid Id,
@@ -83,6 +85,10 @@ public record CommitRow(
     string Description,
     string? Merchant,
     int? CategoryId,
-    string? NewCategoryName);
+    string? NewCategoryName,
+    // The staged row this came from, so a correction is compared with the right suggestion.
+    int? Index = null,
+    // False means "just this once": the row is saved as edited, but no rule is learned from it.
+    bool Remember = true);
 
 public record CommitImportRequest(IReadOnlyList<CommitRow> Rows);

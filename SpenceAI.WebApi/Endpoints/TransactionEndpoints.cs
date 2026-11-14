@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using SpenceAI.Application;
 using SpenceAI.Application.Analytics;
+using SpenceAI.Application.Imports;
 using SpenceAI.Domain;
 
 namespace SpenceAI.WebApi.Endpoints;
@@ -157,12 +158,17 @@ public static class TransactionEndpoints
 
         if (req.RememberCategory && req.CategoryId is int categoryId)
         {
-            var key = MerchantKey.From(tx.Merchant ?? tx.Description);
+            var key = RuleBook.Keys(tx.Merchant, tx.Description).General;
+            var direction = RuleBook.DirectionOf(tx.Type);
             if (key.Length > 0)
             {
-                var rule = await db.MerchantRules.FirstOrDefaultAsync(r => r.Pattern == key, ct);
-                if (rule is null) db.MerchantRules.Add(new MerchantRule { Pattern = key, CategoryId = categoryId });
-                else rule.CategoryId = categoryId;
+                var rule = await db.MerchantRules.FirstOrDefaultAsync(r => r.Pattern == key && r.Direction == direction, ct);
+                if (rule is null) db.MerchantRules.Add(new MerchantRule { Pattern = key, Direction = direction, CategoryId = categoryId });
+                else
+                {
+                    rule.CategoryId = categoryId;
+                    rule.UpdatedAt = DateTime.UtcNow;
+                }
             }
         }
     }

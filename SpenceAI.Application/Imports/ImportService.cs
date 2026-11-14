@@ -96,18 +96,19 @@ public class ImportService(
             connection = await settings.GetConnectionAsync(ct);
             var client = await settings.CreateChatClientAsync(ct);
             var categories = await db.Categories.AsNoTracking().ToListAsync(ct);
+            var rules = await db.MerchantRules.AsNoTracking().Include(r => r.Category).ToListAsync(ct);
             var bytes = await files.ReadAsync(batchId, ct);
 
             List<ExtractedWithSource> extracted;
             switch (batch.Source)
             {
                 case TransactionSource.Pdf:
-                    extracted = await extractor.FromTextChunksAsync(client, TransactionExtractor.ChunkPages(ReadPages(bytes)), categories, ct);
+                    extracted = await extractor.FromTextChunksAsync(client, TransactionExtractor.ChunkPages(ReadPages(bytes)), categories, ct, rules);
                     break;
 
                 case TransactionSource.Csv:
                     var csv = Encoding.UTF8.GetString(bytes);
-                    extracted = await extractor.FromTextChunksAsync(client, TransactionExtractor.ChunkCsv(csv), categories, ct);
+                    extracted = await extractor.FromTextChunksAsync(client, TransactionExtractor.ChunkCsv(csv), categories, ct, rules);
                     break;
 
                 default:
@@ -199,8 +200,9 @@ public class ImportService(
                 else newCategory = item.Category.Trim();
             }
 
-            var key = MerchantKey.From(merchant ?? description);
-            var rule = rules.FirstOrDefault(r => MerchantKey.Matches(key, r.Pattern));
+            // Direction as printed, before any rule. A "transfer" from the AI has no direction unless the amount is marked as a credit.
+            var direction = RuleBook.DirectionOf(type) ?? (evidence == AmountEvidence.FoundAsCredit ? MoneyDirection.In : null);
+            var rule = RuleBook.Match(rules, merchant, description, direction);
             if (rule?.Type is { } ruleType) type = ruleType;
             if (rule?.CategoryId is { } ruleCategory)
             {
@@ -230,7 +232,7 @@ public class ImportService(
 
             var isDuplicate = duplicateOf is not null;
             rows.Add(new StagedRow(rows.Count, date, amount, type, description, merchant, categoryId, newCategory,
-                isDuplicate, Include: !isDuplicate && warning is null, MatchedRule: rule?.Pattern, Warning: warning, DuplicateOf: duplicateOf));
+                isDuplicate, Include: !isDuplicate && warning is null, MatchedRule: rule?.Pattern, Warning: warning, DuplicateOf: duplicateOf, Direction: direction));
         }
 
         return rows;
@@ -318,52 +320,89 @@ public class ImportService(
         await db.SaveChangesAsync(ct);
     }
 
+    private sealed record Correction(CommitRow Row, StagedRow Suggested, Category? Chosen, bool TypeChanged, bool CategoryChanged)
+    {
+        public bool SameOutcomeAs(Correction other) =>
+            Row.Type == other.Row.Type && string.Equals(Chosen?.Name, other.Chosen?.Name, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>
-    /// Remembers corrections per merchant: a different category than the one suggested, or marking a row as a transfer
-    /// (e.g. a card bill payment). Other type changes aren't learned, because refunds and purchases share merchants.
-    /// Rows are matched to staged rows by description.
+    /// Remembers what the user changed (type and/or category), per merchant and direction, unless they chose "just this once".
+    /// <list type="bullet">
+    /// <item>No rule decided the row: learn on the general key ("AMAZON PAY").</item>
+    /// <item>A rule decided it and the user overrode it: add an exception on the specific key ("AMAZON PAY BILLPAYMENT"),
+    /// which wins over the general rule next time. If every row that rule decided got the same correction, the rule
+    /// itself was wrong, so it's updated instead.</item>
+    /// </list>
     /// </summary>
     private async Task LearnRulesAsync(List<StagedRow> staged, IReadOnlyList<CommitRow> committed, Dictionary<string, Category> byName, CancellationToken ct)
     {
-        var suggestions = staged
+        var byIndex = staged.ToDictionary(s => s.Index);
+        var byDescription = staged
             .GroupBy(s => s.Description, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var byId = byName.Values.Where(c => c.Id > 0).ToDictionary(c => c.Id);
         var rules = await db.MerchantRules.ToListAsync(ct);
 
-        var byId = byName.Values.Where(c => c.Id > 0).ToDictionary(c => c.Id);
-
+        var corrections = new List<Correction>();
         foreach (var row in committed)
         {
-            if (!suggestions.TryGetValue(row.Description.Trim(), out var suggested)) continue;
+            var suggested = row.Index is int i && byIndex.TryGetValue(i, out var s) ? s : byDescription.GetValueOrDefault(row.Description.Trim());
+            if (suggested is null) continue;
 
-            var key = MerchantKey.From(row.Merchant ?? row.Description);
-            if (key.Length == 0) continue;
-            var rule = rules.FirstOrDefault(r => r.Pattern == key);
-
-            // Type: learn "this merchant is a transfer"; forget it when the user says otherwise.
-            var learnTransfer = row.Type != suggested.Type && row.Type == TransactionType.Transfer;
-            var forgetType = row.Type != suggested.Type && row.Type != TransactionType.Transfer && rule?.Type is not null;
-
-            // Category: learn it when the user picked something other than the suggestion.
-            Category? chosen = row.CategoryId is int id
-                ? byId.GetValueOrDefault(id)
+            Category? chosen = row.Type == TransactionType.Transfer ? null
+                : row.CategoryId is int id ? byId.GetValueOrDefault(id)
                 : row.NewCategoryName is { } name ? byName.GetValueOrDefault(name.Trim()) : null;
-            var learnCategory = chosen is not null && row.Type != TransactionType.Transfer && (chosen.Id > 0
+            var typeChanged = row.Type != suggested.Type;
+            var categoryChanged = chosen is not null && (chosen.Id > 0
                 ? chosen.Id != suggested.CategoryId
                 : !string.Equals(chosen.Name, suggested.NewCategoryName, StringComparison.OrdinalIgnoreCase));
 
-            if (!learnTransfer && !forgetType && !learnCategory) continue;
+            if (typeChanged || categoryChanged) corrections.Add(new Correction(row, suggested, chosen, typeChanged, categoryChanged));
+        }
 
+        foreach (var c in corrections.Where(c => c.Row.Remember))
+        {
+            var suggested = c.Suggested;
+            var direction = suggested.Direction ?? RuleBook.DirectionOf(suggested.Type) ?? RuleBook.DirectionOf(c.Row.Type);
+            var (general, specific) = RuleBook.Keys(suggested.Merchant, suggested.Description);
+
+            var pattern = general.Length > 0 ? general : specific;
+            var exception = false;
+            if (suggested.MatchedRule is { } matched)
+            {
+                var decidedByRule = staged.Where(s => s.MatchedRule == matched && s.Direction == suggested.Direction).ToList();
+                var ruleWasWrong = decidedByRule.Count > 1 && decidedByRule.All(s =>
+                    corrections.Any(o => o.Suggested.Index == s.Index && o.SameOutcomeAs(c)));
+                // The specific key must be longer than the matched pattern, or it couldn't win over it next time.
+                exception = !ruleWasWrong && specific.Length > 0 && MerchantKey.WordCount(specific) > MerchantKey.WordCount(matched);
+                pattern = exception ? specific : matched;
+            }
+
+            if (pattern.Length == 0) continue;
+
+            var rule = rules.FirstOrDefault(r => r.Pattern == pattern && r.Direction == direction)
+                       ?? rules.FirstOrDefault(r => r.Pattern == pattern && r.Direction is null);
             if (rule is null)
             {
-                rule = new MerchantRule { Pattern = key };
+                rule = new MerchantRule { Pattern = pattern };
                 db.MerchantRules.Add(rule);
                 rules.Add(rule);
             }
 
-            if (learnTransfer) rule.Type = TransactionType.Transfer;
-            if (forgetType) rule.Type = null;
-            if (learnCategory) rule.Category = chosen;
+            rule.Direction = direction;
+            rule.UpdatedAt = DateTime.UtcNow;
+            // An exception pins the whole outcome, so nothing from the general rule leaks into it.
+            if (c.TypeChanged || exception) rule.Type = c.Row.Type;
+            if (c.Row.Type == TransactionType.Transfer)
+            {
+                rule.CategoryId = null;
+                rule.Category = null;
+            }
+            else if ((c.CategoryChanged || exception) && c.Chosen is not null)
+            {
+                rule.Category = c.Chosen;
+            }
         }
     }
 

@@ -189,6 +189,87 @@ public sealed class ImportServiceTests : IDisposable
         Assert.Null(second.Rows[0].CategoryId);
     }
 
+    private static object Upi(string date, decimal amount, string type, string handle, string category) =>
+        new { Date = date, DatePrinted = date, Amount = amount, Type = type, Description = $"UPI/Amazon Pay/{handle}@apl/Request fr/AXIS BANK/6300{amount:0}", Merchant = "Amazon Pay", Category = category };
+
+    [Fact]
+    public async Task Overriding_a_rule_on_one_row_adds_a_specific_exception_instead_of_breaking_the_rule()
+    {
+        var shopping = await _db.Categories.SingleAsync(c => c.Name == "Shopping");
+        _db.MerchantRules.Add(new MerchantRule { Pattern = "AMAZON PAY", Direction = MoneyDirection.Out, CategoryId = shopping.Id });
+        await _db.SaveChangesAsync();
+
+        _ai.Reply(Upi("2026-05-02", 499, "expense", "amazon", "Shopping"), Upi("2026-05-05", 12000, "expense", "amazonpaybill", "Shopping"));
+        var first = await RunImportAsync();
+        Assert.All(first.Rows!, r => Assert.Equal("AMAZON PAY", r.MatchedRule));
+
+        // The user marks only the card bill payment as a transfer.
+        var commit = first.Rows!.Select(r => r.Amount == 12000
+            ? ToCommit(r) with { Type = TransactionType.Transfer, CategoryId = null }
+            : ToCommit(r)).ToList();
+        await _imports.CommitAsync(first.Id, new CommitImportRequest(commit), default);
+
+        var rules = await _db.MerchantRules.OrderBy(r => r.Pattern).ToListAsync();
+        Assert.Equal(["AMAZON PAY", "AMAZON PAY AMAZONPAYBILL"], rules.Select(r => r.Pattern));
+        Assert.Equal(shopping.Id, rules[0].CategoryId);
+        Assert.Equal(TransactionType.Transfer, rules[1].Type);
+
+        _ai.Reply(Upi("2026-06-02", 899, "expense", "amazon", "Shopping"), Upi("2026-06-05", 9000, "expense", "amazonpaybill", "Shopping"));
+        var second = await RunImportAsync();
+        Assert.Equal(TransactionType.Expense, second.Rows![0].Type);
+        Assert.Equal(shopping.Id, second.Rows[0].CategoryId);
+        Assert.Equal(TransactionType.Transfer, second.Rows[1].Type);
+        Assert.Equal("AMAZON PAY AMAZONPAYBILL", second.Rows[1].MatchedRule);
+    }
+
+    [Fact]
+    public async Task Type_corrections_are_learned_per_direction()
+    {
+        // Amazon credits are refunds, not income; Amazon purchases must stay expenses.
+        _ai.Reply(new { Date = "2026-05-02", DatePrinted = "2026-05-02", Amount = 300, Type = "income", Description = "AMAZON RETAIL", Merchant = "Amazon", Category = "Other income" });
+        var first = await RunImportAsync();
+        var shopping = await _db.Categories.SingleAsync(c => c.Name == "Shopping");
+        await _imports.CommitAsync(first.Id, new CommitImportRequest([ToCommit(first.Rows![0]) with { Type = TransactionType.Refund, CategoryId = shopping.Id }]), default);
+
+        var rule = Assert.Single(await _db.MerchantRules.ToListAsync());
+        Assert.Equal(MoneyDirection.In, rule.Direction);
+        Assert.Equal(TransactionType.Refund, rule.Type);
+
+        _ai.Reply(
+            new { Date = "2026-06-02", DatePrinted = "2026-06-02", Amount = 150, Type = "income", Description = "AMAZON RETAIL", Merchant = "Amazon", Category = "Other income" },
+            new { Date = "2026-06-03", DatePrinted = "2026-06-03", Amount = 999, Type = "expense", Description = "AMAZON RETAIL", Merchant = "Amazon", Category = "Shopping" });
+        var second = await RunImportAsync();
+        Assert.Equal(TransactionType.Refund, second.Rows![0].Type);
+        Assert.Equal(shopping.Id, second.Rows[0].CategoryId);
+        Assert.Equal(TransactionType.Expense, second.Rows[1].Type);
+        Assert.Null(second.Rows[1].MatchedRule);
+    }
+
+    [Fact]
+    public async Task Just_this_once_saves_the_edit_without_learning_a_rule()
+    {
+        var dining = await _db.Categories.SingleAsync(c => c.Name == "Dining");
+        _ai.Reply(new { Date = "2026-05-02", DatePrinted = "2026-05-02", Amount = 9.5, Type = "expense", Description = "BLUE BOTTLE 22", Merchant = "Blue Bottle", Category = "Groceries" });
+        var batch = await RunImportAsync();
+        await _imports.CommitAsync(batch.Id, new CommitImportRequest([ToCommit(batch.Rows![0]) with { CategoryId = dining.Id, Remember = false }]), default);
+
+        Assert.Empty(await _db.MerchantRules.ToListAsync());
+        Assert.Equal(dining.Id, (await _db.Transactions.SingleAsync()).CategoryId);
+    }
+
+    [Fact]
+    public void Rule_hints_only_cover_merchants_on_the_statement()
+    {
+        var rules = new[]
+        {
+            new MerchantRule { Pattern = "AMAZON PAY", Direction = MoneyDirection.Out, Type = TransactionType.Transfer },
+            new MerchantRule { Pattern = "SWIGGY", Direction = MoneyDirection.Out, Category = new Category { Name = "Dining" } },
+        };
+
+        var hint = Assert.Single(RuleBook.HintsFor("03/11 UPI/Amazon Pay/x@apl 1,200.00", rules));
+        Assert.Equal("AMAZON PAY (money out) -> transfer", hint);
+    }
+
     [Fact]
     public async Task Broken_pdf_is_rejected_at_upload_without_a_password_code()
     {
@@ -209,7 +290,7 @@ public sealed class ImportServiceTests : IDisposable
     }
 
     private static CommitRow ToCommit(StagedRow r) =>
-        new(r.Date, r.Amount, r.Type, r.Description, r.Merchant, r.CategoryId, r.NewCategoryName);
+        new(r.Date, r.Amount, r.Type, r.Description, r.Merchant, r.CategoryId, r.NewCategoryName, r.Index);
 
     public void Dispose()
     {

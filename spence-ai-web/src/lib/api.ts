@@ -7,6 +7,8 @@ export type TransactionType = 'Expense' | 'Income' | 'Transfer' | 'Refund';
 export type TransactionSource = 'Manual' | 'Pdf' | 'Image' | 'Csv';
 export type ImportStatus = 'Queued' | 'Processing' | 'ReadyForReview' | 'Committed' | 'Failed' | 'Discarded';
 export type AiProvider = 'Ollama' | 'Gemini' | 'OpenAI';
+/** Which way money moved. Rules are learned per direction, so Amazon refunds and Amazon purchases get separate rules. */
+export type MoneyDirection = 'Out' | 'In';
 
 export interface Transaction {
   id: number;
@@ -71,11 +73,14 @@ export type CategoryInput = Pick<Category, 'name' | 'color' | 'icon' | 'kind' | 
 export interface Rule {
   id: number;
   pattern: string;
+  /** null = matches both directions (rules learned before directions existed). */
+  direction: MoneyDirection | null;
   categoryId: number | null;
   categoryName: string | null;
   categoryColor: string | null;
-  /** Only ever 'Transfer' today: "this merchant is a card payment / own-account move". */
+  /** The type the rule forces, e.g. 'Transfer' for a card bill payment. */
   type: TransactionType | null;
+  updatedAt: string;
 }
 
 export interface StagedRow {
@@ -94,6 +99,7 @@ export interface StagedRow {
   warning: string | null;
   /** Why it looks like a duplicate, e.g. "Already saved from an import on 13 Nov". */
   duplicateOf: string | null;
+  direction: MoneyDirection | null;
 }
 
 export interface ImportBatch {
@@ -116,6 +122,10 @@ export interface CommitRow {
   merchant: string | null;
   categoryId: number | null;
   newCategoryName: string | null;
+  /** The staged row's index, so the server compares the edit with the right suggestion. */
+  index: number;
+  /** false = "just this once": save the edit but don't learn a rule from it. */
+  remember: boolean;
 }
 
 export interface CategoryTotal {

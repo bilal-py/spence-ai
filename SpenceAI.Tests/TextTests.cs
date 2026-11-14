@@ -12,10 +12,18 @@ public class MerchantKeyTests
     [InlineData("Uber", "UBER")]
     [InlineData("AMAZON PAY IN FLIGHTS", "AMAZON PAY")]
     [InlineData("UPI/123456/SWIGGY LTD", "SWIGGY")]
+    [InlineData("UPI/Amazon Pay/amazonpaybill@apl/Request fr/AXIS BANK/630049704981/APL01a17bf913c3631a4f34aae44976a", "AMAZON PAY")]
+    [InlineData("HDFC BANK", "HDFC BANK")]
+    [InlineData("NEFT-HDFC0001234-ACME PAYROLL", "ACME PAYROLL")]
     [InlineData("1234 5678", "")]
     [InlineData(null, "")]
     public void Normalizes_noisy_descriptions(string? input, string expected) =>
         Assert.Equal(expected, MerchantKey.From(input));
+
+    [Fact]
+    public void Upi_handle_name_is_kept_and_ids_bank_and_rail_words_dropped() =>
+        Assert.Equal("AMAZON PAY AMAZONPAYBILL",
+            MerchantKey.From("UPI/Amazon Pay/amazonpaybill@apl/Request fr/AXIS BANK/630049704981/APL01a17bf913c3631a4f34aae44976a", maxTokens: 4));
 
     [Fact]
     public void Matches_exact_or_prefix_on_word_boundary()

@@ -74,18 +74,30 @@ public class Category
     public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
 }
 
+/// <summary>Which way money moved. Expenses go out; income and refunds come in; a transfer can be either.</summary>
+public enum MoneyDirection
+{
+    Out,
+    In,
+}
+
 /// <summary>
 /// Learned "merchant key → category and/or type" mapping, applied before (and over) the AI's guess.
-/// Type is only learned for transfers (e.g. a card bill payment), since refunds and purchases share merchants.
+/// A rule is scoped to one <see cref="Direction"/>, so "Amazon refunds are refunds" never touches Amazon purchases.
+/// When several rules match, the one with the longest pattern wins, so a specific exception
+/// ("AMAZON PAY BILLPAYMENT" → Transfer) beats the general rule ("AMAZON PAY" → Shopping).
 /// </summary>
 public class MerchantRule
 {
     public int Id { get; set; }
     public string Pattern { get; set; } = string.Empty;
+    /// <summary>Null matches both directions (rules created before directions existed).</summary>
+    public MoneyDirection? Direction { get; set; }
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
     public TransactionType? Type { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>One uploaded file. Rows are staged as JSON until the user reviews and commits them.</summary>

@@ -214,8 +214,9 @@ function Rules() {
     <section>
       <SectionTitle>Learned rules</SectionTitle>
       <p className="mb-4 text-sm text-ink-soft">
-        When you change the category of an imported transaction, or mark it as a transfer, Spence remembers it for that merchant and applies it before
-        asking the AI next time.
+        When you change the type or category of an imported transaction, Spence remembers it for that merchant, separately for money in and money
+        out, and applies it before the AI's guess next time. Overriding a rule on one row adds a more specific rule for that row, so the general rule
+        keeps working.
       </p>
       <ErrorNote error={rules.error ?? remove.error} />
       {rules.data?.length === 0 && (
@@ -227,10 +228,11 @@ function Rules() {
         {rules.data?.map((r) => (
           <li key={r.id} className="flex items-center gap-3 py-2">
             <code className="truncate rounded bg-sunken px-1.5 py-0.5 text-[0.8rem]">{r.pattern}</code>
+            {r.direction && <span className="text-xs text-ink-faint">{r.direction === 'Out' ? 'money out' : 'money in'}</span>}
             <span className="text-ink-faint" aria-hidden>
-              to
+              →
             </span>
-            {r.type === 'Transfer' && <span className="text-sm">Transfer</span>}
+            {r.type && <span className="text-sm">{r.type}</span>}
             {r.categoryName && (
               <span className="flex min-w-0 items-center gap-1.5 truncate text-sm">
                 <span className="size-2 shrink-0 rounded-full" style={{ background: r.categoryColor ?? undefined }} />

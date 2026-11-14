@@ -13,15 +13,17 @@ public class TransactionExtractor
 
     private static readonly ChatOptions Options = new() { Temperature = 0 };
 
+    /// <param name="rules">The user's learned rules. Those for merchants in a chunk are added to its prompt as hints.</param>
     public async Task<List<ExtractedWithSource>> FromTextChunksAsync(
-        IChatClient client, IReadOnlyList<string> chunks, IReadOnlyCollection<Category> categories, CancellationToken ct)
+        IChatClient client, IReadOnlyList<string> chunks, IReadOnlyCollection<Category> categories, CancellationToken ct,
+        IReadOnlyCollection<MerchantRule>? rules = null)
     {
         var all = new List<ExtractedWithSource>();
         foreach (var chunk in chunks)
         {
             var messages = new List<ChatMessage>
             {
-                new(ChatRole.System, SystemPrompt(categories)),
+                new(ChatRole.System, SystemPrompt(categories, rules is null ? [] : RuleBook.HintsFor(chunk, rules))),
                 new(ChatRole.User, $"<statement>\n{chunk}\n</statement>"),
             };
             all.AddRange((await AskAsync(client, messages, ct)).Select(t => new ExtractedWithSource(t, chunk)));
@@ -58,8 +60,11 @@ public class TransactionExtractor
         return result.Transactions;
     }
 
-    private static string SystemPrompt(IReadOnlyCollection<Category> categories)
+    private static string SystemPrompt(IReadOnlyCollection<Category> categories, IReadOnlyList<string>? hints = null)
     {
+        var corrections = hints is { Count: > 0 }
+            ? "\n\nThe user has corrected these merchants before. Follow them for matching lines:\n" + string.Join("\n", hints.Select(h => "- " + h))
+            : "";
         var spending = string.Join(", ", categories.Where(c => c.Kind != TransactionType.Income).Select(c => c.Name));
         var income = string.Join(", ", categories.Where(c => c.Kind == TransactionType.Income).Select(c => c.Name));
         return $"""
@@ -89,7 +94,7 @@ public class TransactionExtractor
               - transfer: null.
               Only if nothing fits, propose a short new category name (1-2 words, sentence case).
             - If there are no transactions, return an empty list.
-            """;
+            """ + corrections;
     }
 
     // ---- Chunking helpers ----

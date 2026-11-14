@@ -32,13 +32,38 @@ public class SecretProtector(IDataProtectionProvider provider) : ISecretProtecto
     }
 }
 
+/// <summary>
+/// Ollama loads models with a small context (often 4096 tokens) and, when a prompt doesn't fit, silently drops its
+/// beginning: the instructions and the first part of the statement. This asks for a context big enough for a
+/// statement chunk, the prompt and the extracted JSON, and turns a cut-off reply into a clear error.
+/// </summary>
+public sealed class OllamaContextClient(IChatClient inner) : DelegatingChatClient(inner)
+{
+    /// <summary>~9k chars of statement (~3.5k tokens) + instructions (~1k) + JSON for ~50 rows (~5k), with room to spare.</summary>
+    public const int ContextTokens = 16_384;
+
+    public override async Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        options = options?.Clone() ?? new ChatOptions();
+        options.AddOllamaOption(OllamaSharp.Models.OllamaOption.NumCtx, ContextTokens);
+
+        var response = await base.GetResponseAsync(messages, options, cancellationToken);
+        if (response.FinishReason == ChatFinishReason.Length)
+        {
+            throw new AppException("The AI model ran out of room before finishing this statement. Try a model with a larger context window.");
+        }
+
+        return response;
+    }
+}
+
 public class ChatClientFactory(IHttpClientFactory httpFactory) : IChatClientFactory
 {
     private static readonly Uri GeminiOpenAiEndpoint = new("https://generativelanguage.googleapis.com/v1beta/openai/");
 
     public IChatClient Create(AiConnection c) => c.Provider switch
     {
-        AiProvider.Ollama => new OllamaApiClient(OllamaHttp(c.OllamaUrl), c.Model),
+        AiProvider.Ollama => new OllamaContextClient(new OllamaApiClient(OllamaHttp(c.OllamaUrl), c.Model)),
         AiProvider.OpenAI => new OpenAIClient(new ApiKeyCredential(c.ApiKey!))
             .GetChatClient(c.Model).AsIChatClient(),
         // Gemini exposes an OpenAI-compatible endpoint, including JSON-schema structured output.

@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         builder.Properties<TransactionSource>().HaveConversion<string>().HaveMaxLength(16);
         builder.Properties<ImportStatus>().HaveConversion<string>().HaveMaxLength(16);
         builder.Properties<AiProvider>().HaveConversion<string>().HaveMaxLength(16);
+        builder.Properties<MoneyDirection>().HaveConversion<string>().HaveMaxLength(8);
     }
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -46,7 +47,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<MerchantRule>(e =>
         {
             e.Property(r => r.Pattern).HasMaxLength(100);
-            e.HasIndex(r => r.Pattern).IsUnique();
+            e.HasIndex(r => new { r.Pattern, r.Direction }).IsUnique();
             e.HasOne(r => r.Category).WithMany().HasForeignKey(r => r.CategoryId).OnDelete(DeleteBehavior.Cascade);
         });
 
