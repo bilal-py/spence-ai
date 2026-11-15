@@ -175,7 +175,7 @@ public sealed class SavingsTests : IDisposable
     [Fact]
     public async Task Pet_nudges_about_a_won_challenge_first_and_respects_dismissal()
     {
-        var pet = new PetService(_db, _savings);
+        var pet = new PetService(_db, _savings, new SpenceAI.Application.Bills.BillService(_db), new SpenceAI.Application.Quests.QuestService(_db));
         Spend(new DateOnly(2026, 11, 13), 40, "Bus");
         var pot = await _savings.CreateAsync(Pot(), Today, default);
         await _savings.AddChallengeAsync(pot.Id,

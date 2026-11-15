@@ -152,11 +152,59 @@
   animation: pet-z 2.4s ease-out infinite;
 }
 
+/* Wins: a springy pop, a happy wiggle, and a glow sweep across a full progress bar. */
+@keyframes pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.12); }
+  60% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-7deg); }
+  40% { transform: rotate(6deg); }
+  60% { transform: rotate(-4deg); }
+  80% { transform: rotate(2deg); }
+}
+@keyframes shine {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.pop {
+  animation: pop 520ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.wiggle {
+  animation: wiggle 700ms ease-in-out both;
+}
+.shine {
+  position: relative;
+  overflow: hidden;
+}
+.shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.55), transparent);
+  animation: shine 1.6s ease-in-out 2;
+}
+.rise-in {
+  animation: rise-in 360ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ribbon-grow,
   .pet-bounce,
   .pet-breathe,
-  .pet-z {
+  .pet-z,
+  .pop,
+  .wiggle,
+  .shine::after,
+  .rise-in {
     animation: none;
   }
 }

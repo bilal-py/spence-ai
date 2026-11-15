@@ -1,13 +1,14 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { ChevronDown, Minus, Pencil, Plus, Trash2, Trophy, X } from 'lucide-react';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { CategorySelect } from '../components/CategorySelect';
 import { SWATCHES } from '../components/CategoryForm';
 import { Dialog } from '../components/Dialog';
 import { useToast } from '../components/Toast';
 import { Button, Empty, ErrorNote, PageHeader, Segmented, SectionTitle, Spinner } from '../components/ui';
 import { api, type Challenge, type ChallengeInput, type ChallengeKind, type Pot, type PotInput, type PotSource } from '../lib/api';
+import { celebrate, celebrateFrom } from '../lib/celebrate';
 import { longDate, money, percent, shortDate, today, toIso } from '../lib/format';
 import { keys, useCategories, useCurrency, useInvalidateMoney } from '../lib/hooks';
 import { CategoryIcon } from '../lib/icons';
@@ -108,6 +109,45 @@ function PotAmount({ pot }: { pot: Pot }) {
   );
 }
 
+const MILESTONES = [0.25, 0.5, 0.75];
+const MILESTONE_TEXT: Record<number, string> = { 0.25: 'A quarter of the way', 0.5: 'Halfway there', 0.75: 'Three quarters done' };
+
+/**
+ * Celebrates when a pot crosses 25/50/75% (a small burst) or reaches its goal (a big one, a buzz and a shine on the bar),
+ * whatever filled it: money added by hand, a claim, or a linked transfer that just got imported. Nothing fires on first load.
+ */
+function usePotMilestones(pot: Pot, bar: RefObject<HTMLDivElement | null>) {
+  const toast = useToast();
+  const previous = useRef<number | null>(null);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = pot.progress;
+    if (before === null || pot.progress <= before || pot.isArchived) return;
+
+    const el = bar.current;
+    const flash = (cls: string[]) => {
+      if (!el) return;
+      el.classList.remove(...cls);
+      void el.offsetWidth; // restart the animation
+      el.classList.add(...cls);
+      setTimeout(() => el.classList.remove(...cls), 3400);
+    };
+
+    if (before < 1 && pot.progress >= 1) {
+      celebrate({ big: true, emoji: ['🎉', '✨', '💰'] });
+      flash(['pop', 'shine']);
+      toast.show(`${pot.name} is fully funded. You did it!`);
+      return;
+    }
+    const crossed = MILESTONES.filter((m) => before < m && pot.progress >= m).pop();
+    if (crossed) {
+      celebrateFrom(el, { emoji: ['🪙'] });
+      flash(['shine']);
+      toast.show(`${MILESTONE_TEXT[crossed]} on ${pot.name}.`);
+    }
+  }, [pot.progress, pot.name, pot.isArchived, bar, toast]);
+}
+
 function usePotMutation<T>(fn: (arg: T) => Promise<Pot>, success?: (pot: Pot, arg: T) => string) {
   const invalidate = useInvalidateMoney();
   const toast = useToast();
@@ -125,11 +165,16 @@ function PotRow({ pot, onEdit, onMoney, onChallenge }: { pot: Pot; onEdit: () =>
   const currency = useCurrency();
   const [expanded, setExpanded] = useState(false);
   const day = today();
+  const bar = useRef<HTMLDivElement>(null);
+  usePotMilestones(pot, bar);
   const claim = usePotMutation(
-    (source: PotSource) => api.pots.claim(pot.id, source, day),
-    (_, source) => `Moved ${SOURCE_LABEL[source].toLowerCase()} into ${pot.name}`,
+    (v: { source: PotSource; el: Element | null }) => api.pots.claim(pot.id, v.source, day).then((p) => (celebrateFrom(v.el, { emoji: ['🪙'], silent: true }), p)),
+    (_, v) => `Moved ${SOURCE_LABEL[v.source].toLowerCase()} into ${pot.name}`,
   );
-  const claimChallenge = usePotMutation((c: Challenge) => api.pots.claimChallenge(pot.id, c.id, day), (_, c) => `Moved the reward for “${c.title}” in`);
+  const claimChallenge = usePotMutation(
+    (v: { c: Challenge; el: Element | null }) => api.pots.claimChallenge(pot.id, v.c.id, day).then((p) => (celebrateFrom(v.el, { emoji: ['🏆'] }), p)),
+    (_, v) => `Challenge won! Moved the reward for “${v.c.title}” in`,
+  );
   const removeChallenge = usePotMutation((c: Challenge) => api.pots.removeChallenge(pot.id, c.id, day));
   const removeEntry = usePotMutation((entryId: number) => api.pots.removeEntry(pot.id, entryId, day), () => 'Entry removed');
 
@@ -154,7 +199,7 @@ function PotRow({ pot, onEdit, onMoney, onChallenge }: { pot: Pot; onEdit: () =>
         </p>
       </div>
 
-      <div className="relative mt-4 h-3 overflow-hidden rounded-full bg-sunken" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pot.progress * 100)} aria-label={`${pot.name} progress`}>
+      <div ref={bar} className="relative mt-4 h-3 overflow-hidden rounded-full bg-sunken" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pot.progress * 100)} aria-label={`${pot.name} progress`}>
         <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${pot.progress * 100}%`, background: pot.color }} />
         {expectedShare !== null && pace?.status !== 'done' && (
           <div className="absolute inset-y-0 w-0.5 bg-ink/60" style={{ left: `${expectedShare * 100}%` }} title={`Where you'd be on an even pace: ${money(pace!.expected, currency)}`} />
@@ -189,7 +234,7 @@ function PotRow({ pot, onEdit, onMoney, onChallenge }: { pot: Pot; onEdit: () =>
                 <span className="num font-semibold">{money(a.amount, currency)}</span> {SOURCE_LABEL[a.source].toLowerCase()}
                 <span className="ml-1 text-ink-soft">({a.detail})</span>
               </span>
-              <Button size="sm" variant="primary" busy={claim.isPending && claim.variables === a.source} onClick={() => claim.mutate(a.source)}>
+              <Button size="sm" variant="primary" busy={claim.isPending && claim.variables?.source === a.source} onClick={(e) => claim.mutate({ source: a.source, el: e.currentTarget })}>
                 Move in
               </Button>
             </li>
@@ -220,7 +265,7 @@ function PotRow({ pot, onEdit, onMoney, onChallenge }: { pot: Pot; onEdit: () =>
           {pot.challenges
             .filter((c) => c.status === 'active' || c.status === 'won')
             .map((c) => (
-              <ChallengeItem key={c.id} c={c} onClaim={() => claimChallenge.mutate(c)} onRemove={() => removeChallenge.mutate(c)} claiming={claimChallenge.isPending} />
+              <ChallengeItem key={c.id} c={c} onClaim={(el) => claimChallenge.mutate({ c, el })} onRemove={() => removeChallenge.mutate(c)} claiming={claimChallenge.isPending} />
             ))}
         </ul>
       )}
@@ -298,10 +343,10 @@ function PotRow({ pot, onEdit, onMoney, onChallenge }: { pot: Pot; onEdit: () =>
   );
 }
 
-function ChallengeItem({ c, onClaim, onRemove, claiming }: { c: Challenge; onClaim: () => void; onRemove: () => void; claiming: boolean }) {
+function ChallengeItem({ c, onClaim, onRemove, claiming }: { c: Challenge; onClaim: (el: Element) => void; onRemove: () => void; claiming: boolean }) {
   const currency = useCurrency();
   return (
-    <li className={clsx('rounded-lg border px-3 py-2.5 text-sm', c.status === 'won' ? 'border-pine bg-pine-soft' : 'border-line')}>
+    <li className={clsx('rounded-lg border px-3 py-2.5 text-sm', c.status === 'won' ? 'wiggle border-pine bg-pine-soft' : 'border-line')}>
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium">
           <Trophy className="mr-1 inline size-3.5 align-[-2px] text-ochre" aria-hidden />
@@ -319,7 +364,7 @@ function ChallengeItem({ c, onClaim, onRemove, claiming }: { c: Challenge; onCla
           {c.progress} of {c.goal} {c.kind === 'SkipCategory' ? 'days clean' : 'no-spend days'} · reward <span className="num">{money(c.reward, currency)}</span>
         </span>
         {c.status === 'won' && (
-          <Button size="sm" variant="primary" busy={claiming} onClick={onClaim}>
+          <Button size="sm" variant="primary" busy={claiming} onClick={(e) => onClaim(e.currentTarget)}>
             Move it in
           </Button>
         )}

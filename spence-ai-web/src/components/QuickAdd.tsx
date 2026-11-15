@@ -1,8 +1,10 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { CornerDownLeft, LoaderCircle, Sparkles, Wand2, Zap } from 'lucide-react';
+import { CornerDownLeft, LoaderCircle, Repeat, Sparkles, Wand2, X, Zap } from 'lucide-react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { api, type Account, type Category, type QuickAddRow, type TransactionInput, type TransactionType } from '../lib/api';
+import { api, type Account, type BillInput, type Category, type QuickAddRow, type TransactionInput, type TransactionType } from '../lib/api';
+import { cadenceLabel } from '../lib/bills';
+import { celebrate } from '../lib/celebrate';
 import { money, today } from '../lib/format';
 import { useAccounts, useCategories, useCurrency, useInvalidateMoney } from '../lib/hooks';
 import { AccountSelect } from './AccountSelect';
@@ -59,7 +61,7 @@ interface Row extends QuickAddRow {
   remember: boolean;
 }
 
-type Edit = Partial<Pick<Row, 'amount' | 'merchant' | 'type' | 'categoryId' | 'date' | 'accountId' | 'remember'>>;
+type Edit = Partial<Pick<Row, 'amount' | 'merchant' | 'type' | 'categoryId' | 'date' | 'accountId' | 'remember' | 'repeat'>>;
 
 function useDebounced<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -125,9 +127,12 @@ function QuickAddForm({ onDone }: { onDone: () => void }) {
   const canSave = rows.length > 0 && problems.length === 0 && !waiting;
 
   const save = useMutation({
-    mutationFn: () =>
-      api.transactions.createMany(
-        rows.map(
+    mutationFn: async () => {
+      // Lines that repeat ("monthly on 5th") become bills; the rest are transactions, saved all or nothing.
+      const billRows = rows.filter((r) => r.repeat && (r.type === 'Expense' || r.type === 'Transfer'));
+      const txRows = rows.filter((r) => !billRows.includes(r));
+      const saved = txRows.length > 0 ? await api.transactions.createMany(
+        txRows.map(
           (r): TransactionInput => ({
             date: r.date,
             amount: Number(r.amount),
@@ -140,11 +145,43 @@ function QuickAddForm({ onDone }: { onDone: () => void }) {
             accountId: r.accountId,
           }),
         ),
-      ),
-    onSuccess: (saved) => {
+      ) : [];
+      const bills = [];
+      for (const r of billRows) {
+        const category = categories.find((c) => c.id === r.categoryId);
+        const input: BillInput = {
+          name: r.merchant.trim(),
+          amount: Number(r.amount),
+          amountVaries: false,
+          type: r.type as 'Expense' | 'Transfer',
+          cadence: r.repeat!.cadence,
+          interval: r.repeat!.interval,
+          firstDueDate: r.date,
+          endsOn: null,
+          matchPattern: null,
+          categoryId: r.type === 'Transfer' ? null : r.categoryId,
+          accountId: r.accountId,
+          autopay: false,
+          isSubscription: category?.name === 'Subscriptions' || category?.name === 'Entertainment',
+          remindDaysBefore: 3,
+          isPaused: false,
+          notes: null,
+        };
+        bills.push(await api.bills.create(input, today()));
+      }
+      return { saved, bills };
+    },
+    onSuccess: ({ saved, bills }) => {
       invalidate();
       const total = saved.reduce((s, t) => s + t.amount, 0);
-      toast.show(saved.length === 1 ? `Added ${saved[0].merchant ?? saved[0].description}, ${money(total, currency)}` : `Added ${saved.length} transactions`);
+      const parts: string[] = [];
+      if (saved.length === 1) parts.push(`Added ${saved[0].merchant ?? saved[0].description}, ${money(total, currency)}`);
+      else if (saved.length > 1) parts.push(`Added ${saved.length} transactions`);
+      if (bills.length > 0) {
+        parts.push(`${saved.length ? 'tracking' : 'Tracking'} ${bills.length === 1 ? bills[0].name : `${bills.length} bills`}`);
+        celebrate({ emoji: ['📅'], silent: true });
+      }
+      toast.show(parts.join(', '));
       onDone();
     },
   });
@@ -184,7 +221,8 @@ function QuickAddForm({ onDone }: { onDone: () => void }) {
       {rows.length === 0 ? (
         <p className="text-sm text-ink-soft">
           Type an amount and what it was for. Add a day (<i>yesterday</i>, <i>mon</i>, <i>12 nov</i>), how you paid (<i>cash</i>, <i>card</i>, <i>upi</i>,
-          or an account name) and words like <i>got</i>, <i>refund</i> or <i>card bill</i> to change the type. Separate several with commas.
+          or an account name) and words like <i>got</i>, <i>refund</i> or <i>card bill</i> to change the type. Separate several with commas. Something
+          that repeats (<i>netflix 649 monthly on 5th</i>) becomes a bill.
         </p>
       ) : (
         <ul className="grid gap-2.5" aria-live="polite">
@@ -295,7 +333,18 @@ function RowCard({
               onChange={(categoryId) => onChange({ categoryId })}
             />
           ))}
-        <input aria-label="Date" type="date" className={chip} value={r.date} max={today()} onChange={(e) => e.target.value && onChange({ date: e.target.value })} />
+        {r.repeat ? (
+          <span className="inline-flex h-8 items-center gap-1 rounded-md border border-pine/50 bg-pine-soft/60 pr-1 pl-2 text-sm">
+            <Repeat className="size-3.5 text-pine" aria-hidden />
+            {cadenceLabel(r.repeat)} bill, next
+            <input aria-label="Next due" type="date" className="h-7 rounded border-none bg-transparent px-1 text-sm" value={r.date} onChange={(e) => e.target.value && onChange({ date: e.target.value })} />
+            <button type="button" onClick={() => onChange({ repeat: null, date: today() })} className="rounded p-0.5 text-ink-faint hover:text-ink" aria-label="Save once instead of as a bill" title="Just a one-off">
+              <X className="size-3.5" />
+            </button>
+          </span>
+        ) : (
+          <input aria-label="Date" type="date" className={chip} value={r.date} max={today()} onChange={(e) => e.target.value && onChange({ date: e.target.value })} />
+        )}
         {accounts.length > 0 && (
           <AccountSelect
             aria-label="Account"

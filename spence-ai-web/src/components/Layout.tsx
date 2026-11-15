@@ -1,21 +1,26 @@
 import { clsx } from 'clsx';
-import { ChartNoAxesColumn, FileUp, Gift, List, PiggyBank, Plus, Settings, Shapes } from 'lucide-react';
-import { NavLink, Outlet, useSearchParams } from 'react-router';
+import { ChartNoAxesColumn, FileUp, Gift, List, MessageCircleQuestion, PiggyBank, Plus, ReceiptText, Settings, Shapes } from 'lucide-react';
+import { Link, NavLink, Outlet, useSearchParams } from 'react-router';
+import { useBillReminders } from '../lib/reminders';
 import { useQuickAdd } from './QuickAdd';
 
-// The phone's bottom bar has room for five; Categories and Wrapped are reached from Settings and the Overview there.
+// The phone's bottom bar has room for five. On phones, Ask and Settings sit in the header; Import is reached from
+// the Overview and Transactions, Categories from Settings, and Wrapped from the Overview of a finished month.
 const NAV = [
   { to: '/', label: 'Overview', icon: ChartNoAxesColumn, keepPeriod: true, mobile: true },
   { to: '/transactions', label: 'Transactions', icon: List, keepPeriod: true, mobile: true },
+  { to: '/bills', label: 'Bills', icon: ReceiptText, mobile: true },
   { to: '/pots', label: 'Pots', icon: PiggyBank, mobile: true },
+  { to: '/ask', label: 'Ask', icon: MessageCircleQuestion, mobile: false },
   { to: '/wrapped', label: 'Wrapped', icon: Gift, mobile: false },
   { to: '/import', label: 'Import', icon: FileUp, mobile: true },
   { to: '/categories', label: 'Categories', icon: Shapes, mobile: false },
-  { to: '/settings', label: 'Settings', icon: Settings, mobile: true },
+  { to: '/settings', label: 'Settings', icon: Settings, mobile: false },
 ];
 
 export function Layout() {
   const quickAdd = useQuickAdd();
+  useBillReminders();
   const [params] = useSearchParams();
   const p = params.get('p');
   const href = (item: (typeof NAV)[number]) => (item.keepPeriod && p ? `${item.to}?p=${p}` : item.to);
@@ -56,9 +61,17 @@ export function Layout() {
 
       <header className="flex items-center justify-between border-b border-line px-4 py-3 md:hidden">
         <Wordmark />
-        <button onClick={() => quickAdd.open()} aria-label="Add transaction" className="grid size-9 place-items-center rounded-md bg-pine text-on-pine">
-          <Plus className="size-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <Link to="/ask" aria-label="Ask Spence" className="grid size-9 place-items-center rounded-md text-ink-soft hover:bg-sunken hover:text-ink">
+            <MessageCircleQuestion className="size-5" strokeWidth={1.75} />
+          </Link>
+          <Link to="/settings" aria-label="Settings" className="grid size-9 place-items-center rounded-md text-ink-soft hover:bg-sunken hover:text-ink">
+            <Settings className="size-5" strokeWidth={1.75} />
+          </Link>
+          <button onClick={() => quickAdd.open()} aria-label="Add transaction" className="ml-1 grid size-9 place-items-center rounded-md bg-pine text-on-pine">
+            <Plus className="size-4" />
+          </button>
+        </div>
       </header>
 
       <main className="mx-auto w-full min-w-0 max-w-[76rem] px-4 pt-6 pb-28 md:px-10 md:pt-10 md:pb-16">

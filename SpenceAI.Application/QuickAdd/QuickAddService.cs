@@ -21,7 +21,8 @@ public record QuickAddRow(
     string? CategorySource,
     int? AccountId,
     string? MatchedRule,
-    IReadOnlyList<string> Unsure);
+    IReadOnlyList<string> Unsure,
+    Repeat? Repeat = null);
 
 public record QuickAddSuggestItem(string Merchant, TransactionType Type);
 public record QuickAddSuggestRequest(IReadOnlyList<QuickAddSuggestItem> Items);
@@ -96,7 +97,7 @@ public class QuickAddService(IAppDbContext db, SettingsService settings, ILogger
                 source = null;
             }
 
-            rows.Add(new QuickAddRow(line.Text, line.Date, line.Amount, type, line.Merchant, categoryId, source, line.AccountId, rule?.Pattern, line.Unsure));
+            rows.Add(new QuickAddRow(line.Text, line.Date, line.Amount, type, line.Merchant, categoryId, source, line.AccountId, rule?.Pattern, line.Unsure, line.Repeat));
         }
 
         return rows;

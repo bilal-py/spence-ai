@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useSearchParams } from 'react-router';
 import { api } from './api';
-import { parsePeriod } from './format';
+import { parsePeriod, today } from './format';
 
 export const keys = {
   settings: ['settings'] as const,
@@ -15,6 +15,8 @@ export const keys = {
   pots: ['pots'] as const,
   wrapped: ['wrapped'] as const,
   pet: ['pet'] as const,
+  bills: ['bills'] as const,
+  quests: ['quests'] as const,
 };
 
 export function useSettings() {
@@ -37,7 +39,7 @@ export function useAccounts() {
 export function useInvalidateMoney() {
   const qc = useQueryClient();
   return useCallback(() => {
-    for (const key of [keys.transactions, keys.overview, keys.categories, keys.accounts, keys.imports, keys.rules, keys.pots, keys.wrapped, keys.pet]) {
+    for (const key of [keys.transactions, keys.overview, keys.categories, keys.accounts, keys.imports, keys.rules, keys.pots, keys.wrapped, keys.pet, keys.bills, keys.quests]) {
       qc.invalidateQueries({ queryKey: key });
     }
   }, [qc]);
@@ -61,4 +63,14 @@ export function usePeriod() {
     [setParams],
   );
   return [period, setPeriod] as const;
+}
+
+export function useBills() {
+  const day = today();
+  return useQuery({ queryKey: [...keys.bills, day], queryFn: () => api.bills.overview(day), staleTime: 30_000 });
+}
+
+export function useQuests() {
+  const day = today();
+  return useQuery({ queryKey: [...keys.quests, day], queryFn: () => api.quests(day), staleTime: 30_000 });
 }

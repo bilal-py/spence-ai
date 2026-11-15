@@ -100,6 +100,8 @@ export interface QuickAddRow {
   matchedRule: string | null;
   /** Fields worth a second look: 'amount' | 'merchant' | 'account'. */
   unsure: string[];
+  /** Set when the line repeats ("monthly on 5th"): it's saved as a bill, not a transaction. */
+  repeat: { cadence: BillCadence; interval: number; nextDue: string } | null;
 }
 
 export interface QuickAddSuggestion {
@@ -385,6 +387,173 @@ export interface PetState {
   moodLine: string;
   /** `text` may contain "{amount}": fill it with `amount` in the user's currency. */
   nudge: { key: string; text: string; amount: number | null; link: string | null } | null;
+  level: number;
+  accessory: PetAccessory | null;
+  unlocked: PetAccessory[];
+}
+
+export type PetAccessory = 'flower' | 'bowtie' | 'shades' | 'crown';
+
+// ---- Bills (SpenceAI.Application.Bills) ----
+
+export type BillCadence = 'Weekly' | 'Monthly' | 'Yearly';
+/** unconfirmed = past due, but no transactions imported that far yet. */
+export type OccurrenceStatus = 'paid' | 'skipped' | 'upcoming' | 'due' | 'late' | 'unconfirmed';
+
+export interface Occurrence {
+  dueDate: string;
+  status: OccurrenceStatus;
+  amount: number;
+  paidAmount: number | null;
+  paidOn: string | null;
+  transactionId: number | null;
+  /** Marked paid or skipped by hand (can be undone). */
+  byHand: boolean;
+}
+
+export interface Bill {
+  id: number;
+  name: string;
+  amount: number;
+  amountVaries: boolean;
+  type: 'Expense' | 'Transfer';
+  cadence: BillCadence;
+  interval: number;
+  firstDueDate: string;
+  endsOn: string | null;
+  matchPattern: string;
+  categoryId: number | null;
+  categoryName: string | null;
+  categoryColor: string | null;
+  categoryIcon: string | null;
+  accountId: number | null;
+  accountName: string | null;
+  autopay: boolean;
+  isSubscription: boolean;
+  remindDaysBefore: number;
+  isPaused: boolean;
+  cancelledOn: string | null;
+  lastReviewedOn: string | null;
+  notes: string | null;
+  monthlyCost: number;
+  yearlyCost: number;
+  next: Occurrence | null;
+  /** Newest first. */
+  recent: Occurrence[];
+  priceChange: { from: number; to: number; since: string } | null;
+  paymentsLeft: number | null;
+  chargedAfterCancel: string | null;
+  onTimeStreak: number;
+}
+
+export interface BillInput {
+  name: string;
+  amount: number;
+  amountVaries: boolean;
+  type: 'Expense' | 'Transfer';
+  cadence: BillCadence;
+  interval: number;
+  firstDueDate: string;
+  endsOn: string | null;
+  matchPattern: string | null;
+  categoryId: number | null;
+  accountId: number | null;
+  autopay: boolean;
+  isSubscription: boolean;
+  remindDaysBefore: number;
+  isPaused: boolean;
+  notes: string | null;
+}
+
+export interface BillSuggestion {
+  name: string;
+  pattern: string;
+  amount: number;
+  type: 'Expense' | 'Transfer';
+  categoryId: number | null;
+  categoryName: string | null;
+  nextDue: string;
+  firstDue: string;
+  months: number;
+  looksLikeSubscription: boolean;
+}
+
+export interface CalendarItem {
+  billId: number;
+  name: string;
+  dueDate: string;
+  amount: number;
+  status: OccurrenceStatus;
+  color: string | null;
+  icon: string | null;
+  autopay: boolean;
+}
+
+export interface SafeToSpend {
+  amount: number;
+  perDay: number;
+  daysLeft: number;
+  baseline: number;
+  baselineSource: 'budgets' | 'average';
+  spent: number;
+  billsDue: number;
+}
+
+export interface BillsOverview {
+  bills: Bill[];
+  thisMonth: { total: number; paid: number; remaining: number; count: number; paidCount: number };
+  monthlyTotal: number;
+  subscriptionsYearly: number;
+  cancelledYearly: number;
+  calendar: CalendarItem[];
+  dueSoon: CalendarItem[];
+  suggestions: BillSuggestion[];
+  safeToSpend: SafeToSpend | null;
+}
+
+// ---- Streaks and side quests ----
+
+export interface Quest {
+  key: string;
+  title: string;
+  detail: string;
+  progress: number;
+  goal: number;
+  xp: number;
+  done: boolean;
+  /** Fills "{amount}" in `detail`. */
+  amount: number | null;
+}
+
+export interface Streak {
+  key: 'check-in' | 'no-spend' | 'light-weeks' | 'bills';
+  title: string;
+  current: number;
+  best: number;
+  unit: 'days' | 'weeks' | 'bills';
+  alive: boolean;
+}
+
+export interface QuestsState {
+  weekStart: string;
+  weekEnd: string;
+  quests: Quest[];
+  streaks: Streak[];
+  level: { number: number; title: string; xp: number; levelStartXp: number; nextLevelXp: number };
+  unlocked: PetAccessory[];
+  justCompleted: Quest[];
+}
+
+// ---- Ask ----
+
+export interface AskMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+export interface AskResponse {
+  reply: string;
+  lookups: string[];
 }
 
 export class ApiError extends Error {
@@ -511,8 +680,26 @@ export const api = {
   pet: {
     get: (today: string) => request<PetState>(`/pet${qs({ today })}`),
     dismiss: (today: string) => request<void>('/pet/dismiss', json('POST', { today })),
-    update: (enabled: boolean, name: string, today: string) => request<PetState>(`/pet/settings${qs({ today })}`, json('PUT', { enabled, name })),
+    update: (enabled: boolean, name: string, accessory: PetAccessory | 'none' | 'auto' | null, today: string) =>
+      request<PetState>(`/pet/settings${qs({ today })}`, json('PUT', { enabled, name, accessory })),
   },
+  bills: {
+    overview: (today: string) => request<BillsOverview>(`/bills${qs({ today })}`),
+    create: (input: BillInput, today: string) => request<Bill>(`/bills${qs({ today })}`, json('POST', input)),
+    update: (id: number, input: BillInput, today: string) => request<Bill>(`/bills/${id}${qs({ today })}`, json('PUT', input)),
+    remove: (id: number) => request<void>(`/bills/${id}`, { method: 'DELETE' }),
+    /** Logs the payment as a transaction. */
+    markPaid: (id: number, dueDate: string, paidOn: string, amount: number | null, today: string) =>
+      request<Bill>(`/bills/${id}/paid`, json('POST', { dueDate, paidOn, amount, today })),
+    skip: (id: number, dueDate: string, today: string) => request<Bill>(`/bills/${id}/skip`, json('POST', { dueDate, today })),
+    /** Undo a mark; a "paid" mark deletes the transaction it logged. */
+    unmark: (id: number, dueDate: string, today: string) => request<Bill>(`/bills/${id}/marks/${dueDate}${qs({ today })}`, { method: 'DELETE' }),
+    review: (id: number, decision: 'keep' | 'cancel' | 'restore', today: string) => request<Bill>(`/bills/${id}/review`, json('POST', { decision, today })),
+    dismissSuggestion: (pattern: string) => request<void>('/bills/suggestions/dismiss', json('POST', { pattern })),
+    calendarUrl: () => `${API_URL}/bills/calendar.ics`,
+  },
+  quests: (today: string) => request<QuestsState>(`/quests${qs({ today })}`),
+  ask: (messages: AskMessage[], today: string) => request<AskResponse>('/ask', json('POST', { messages, today })),
   settings: {
     get: () => request<Settings>('/settings'),
     update: (input: SettingsInput) => request<Settings>('/settings', json('PUT', input)),

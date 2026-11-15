@@ -71,6 +71,7 @@ app.MapCategoryEndpoints();
 app.MapAccountEndpoints();
 app.MapQuickAddEndpoints();
 app.MapSavingsEndpoints();
+app.MapBillEndpoints();
 app.MapAppEndpoints();
 app.MapBackupEndpoints();
 

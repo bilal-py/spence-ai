@@ -19,6 +19,8 @@ const Categories = lazy(() => import('./pages/Categories'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Pots = lazy(() => import('./pages/Pots'));
 const Wrapped = lazy(() => import('./pages/Wrapped'));
+const Bills = lazy(() => import('./pages/Bills'));
+const Ask = lazy(() => import('./pages/Ask'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
@@ -43,6 +45,8 @@ const router = createBrowserRouter([
       { path: 'import', element: page(<Import />) },
       { path: 'import/:id', element: page(<ImportReview />) },
       { path: 'pots', element: page(<Pots />) },
+      { path: 'bills', element: page(<Bills />) },
+      { path: 'ask', element: page(<Ask />) },
       { path: 'wrapped', element: page(<Wrapped />) },
       { path: 'categories', element: page(<Categories />) },
       { path: 'settings', element: page(<Settings />) },

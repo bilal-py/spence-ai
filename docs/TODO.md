@@ -26,9 +26,10 @@ Working list for Spence. Decisions go in `PROJECT.md` (Decision Log); this file 
 - [x] Savings pots (brainstorm below)
 - [x] Nudges with a pet (brainstorm below)
 - [ ] Budget alerts and month-end forecast
-- [ ] Subscription manager: yearly cost, price-increase alerts
+- [x] Subscription manager: yearly cost, price-increase alerts (part of Bills)
+- [x] Bills & reminders, safe to spend, streaks & side quests, confetti
 - [ ] Unusual-charge alerts: odd amounts, double charges, new merchants
-- [ ] Ask your expenses: chat over safe query functions
+- [x] Ask your expenses: chat over safe query functions
 - [ ] Split transactions and tags (trips, projects)
 
 **Later**

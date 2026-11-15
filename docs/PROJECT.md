@@ -36,7 +36,12 @@ Rewritten from the earlier prototype. Everything below works end to end and was 
 | Quick add | Done. One line ("chai 40 upi, uber 250 yesterday") → confirm cards → Enter. Rules first, AI only for unknown categories |
 | Savings pots | Done. Goal, deadline, pace (per month/week, ahead/behind). Filled by hand, linked transfers (live), round-ups, leftover budget, no-spend bonuses and challenges (skip a category, N no-spend days) |
 | Monthly Wrapped | Done. `/wrapped?m=2026-10`: recap cards, PNG per card or all-in-one, "Hide amounts" swaps money for counts and shares |
-| Pet | Done. Sprig on the Overview: mood from the month's pace, at most one rule-based nudge a day, dismiss until tomorrow; rename or hide in Settings |
+| Pet | Done. Sprig on the Overview: mood from the month's pace, at most one rule-based nudge a day, dismiss until tomorrow; rename or hide in Settings. Wears outfits unlocked by side-quest levels |
+| Bills & subscriptions | Done. `/bills`: weekly/monthly/yearly bills (every N), end date for EMIs, expense or transfer. Paid status worked out live from matching transactions; "Paid" logs the transaction (undo deletes it); skip a date. Month strip, coming-up list, on-time streaks, price-change alerts, setup from spotted repeat charges, subscription swipe check (keep/cut) with yearly cost and "charged after you cancelled" alerts, `.ics` calendar file, browser reminders while open, Sprig nudges. Quick add: "netflix 649 monthly on 5th" makes a bill |
+| Safe to spend | Done. Overview card: what's left in the budgeted categories (or the usual month) after spending and bills still due |
+| Streaks & side quests | Done. Check-in, no-spend, light-week and bills-on-time streaks; three rule-based quests a week; XP levels (Seedling → Old oak) unlock pet outfits |
+| Ask your expenses | Done. `/ask`: chat where the model calls read-only query tools (totals, ≤25 rows, categories, bills, pots) and the UI lists what it looked up |
+| Celebrations | Done. Dependency-free confetti + haptic buzz for pot milestones and goals, challenge wins, bills paid (all of a month's bills: a big one), quests, level-ups and subscription cuts; skipped with reduced motion |
 | Tests | xUnit tests: text helpers, date resolution, recurring detection, full import flow with a fake LLM |
 | CI | GitHub Actions: build, test, lint, web build |
 
@@ -64,9 +69,9 @@ Rewritten from the earlier prototype. Everything below works end to end and was 
 5. ~~Backup & restore~~ (done 2026-11-14).
 
 **Then: make it insightful**
-6. Ask your expenses: chat with tool-calling over safe query functions ("how much on food delivery since June?").
-7. Budget alerts and month-end forecast ("at this pace you'll spend $X").
-8. Subscription manager: confirm or dismiss detected recurring charges, show yearly cost, flag price increases.
+6. ~~Ask your expenses~~ (done 2026-11-15).
+7. Budget alerts and month-end forecast ("at this pace you'll spend $X"). Safe-to-spend covers part of this.
+8. ~~Subscription manager~~ (done 2026-11-15, as part of Bills).
 9. Anomaly flags: unusual amount for a merchant, duplicate charges, new merchants.
 10. Split transactions (one receipt across categories) and tags (trips, projects).
 
@@ -113,3 +118,12 @@ Append-only. Format: `YYYY-MM-DD: Decision. Why. (Alternatives rejected.)`
 - 2026-11-15: **The pet is rules only and never scolds.** Mood = this month's net spending vs a prorated baseline (total budgets, else the last 3 months' average): cheerful / content / watchful, plus proud (a pot done or a challenge won) and sleepy (nothing in 30 days). One nudge a day by priority: won challenge → money ready to move in → budget at 80–99% with 5+ days left → recurring charge due in 3 days → nothing logged for a week → no-spend streak → pot behind pace. Dismissing stores the day in settings.
 - 2026-11-15: **Every dialog closes on Escape explicitly** (keydown + cancel handlers), instead of relying on the native `<dialog>` cancel, which Chrome can swallow.
 - 2026-11-15: **Phone bottom bar keeps five items** (Overview, Transactions, Pots, Import, Settings). Wrapped is linked from the Overview of a finished month and Categories from Settings.
+- 2026-11-15: **Bills are schedules; paid status is computed, not stored.** A due date counts as paid when an Expense or Transfer whose merchant/description contains all the bill's words lands within a window of it (weekly −2/+3 days, monthly ±10, yearly ±30; fixed amounts within 0.5×–2× so a price rise still matches, then gets flagged). The closest unused transaction wins, so one charge never pays two dates. Only what the user says by hand is stored (`BillMark`: paid with the transaction Spence logged, or skipped); deleting that transaction cascades the mark away, so the bill goes back to unpaid. A past date with no payment is "late" only once the data reaches 3 days past it, else "unconfirmed" (an import gap isn't a missed bill). Matching uses all letters-only words, bank names included, unlike merchant keys. (Storing a status per month rejected: it goes stale when imports arrive or transactions are deleted.)
+- 2026-11-15: **Card bills, SIPs and EMIs can be Transfer bills.** They're tracked and reminded like any bill but never lower safe-to-spend, matching "card bill payments are transfers".
+- 2026-11-15: **Safe to spend is budget-scoped when budgets exist.** Budgets − spending in budgeted categories − unpaid expense bills in those categories. Without budgets: the last three months' average − all spending − all unpaid expense bills. (Total budgets − all spending rejected: rent with no budget made it hugely negative.)
+- 2026-11-15: **Bill reminders without a server push.** In-app (Overview "Coming up", Sprig's nudge, browser notifications at most once a day while a tab is open, opt-in) plus a downloadable `.ics` with one RRULE event and alarm per bill, so a phone calendar reminds even when Spence is closed. (Web Push rejected for now: needs a service worker and a push service, and the API is local.)
+- 2026-11-15: **Subscription check is swipe keep/cut.** Cutting sets `CancelledOn` (Spence can't cancel anything); the bill stops reminding, its yearly cost counts toward "back in your pocket", and a matching charge after cancelling is flagged.
+- 2026-11-15: **Side quests are rules over local data, three a week, stable all week.** Picked by a hash of the week from those that fit the data (check-ins, no-spend days, a frequent treat category, light days, feeding a pot, bills on time, everything categorized, subscription check). A finished quest is recorded in `QuestCompletion` the first time it's seen done (last week is settled too), so XP never goes backwards when data changes; the GET writes, which is fine for a single local user. Levels unlock pet outfits; the choice is stored in settings ("auto" = best unlocked).
+- 2026-11-15: **Ask uses tool calling over read-only functions.** `FunctionInvokingChatClient` (max 6 rounds) with `spending_summary`, `list_transactions` (≤25 rows), `list_categories`, `bills_overview`, `savings_pots`. The model sees only what a question needs (rows only when it asks for a list), can't write, and every lookup is listed under the answer. The chat lives in the browser (sessionStorage); the server is stateless and gets the last 12 messages. Small local models may skip tools; a 7B+ model or a cloud model works best.
+- 2026-11-15: **Celebrations are hand-rolled canvas confetti + `navigator.vibrate`.** Fired from the action's button where possible, once per event (quests via `JustCompleted`, levels via a stored last level, pots by watching progress cross 25/50/75/100%). Reduced motion skips the confetti. (canvas-confetti rejected: a dependency for ~150 lines.)
+- 2026-11-15: **Phone bottom bar: Overview, Transactions, Bills, Pots, Import.** Ask and Settings moved to icons in the phone header. Supersedes the earlier five.

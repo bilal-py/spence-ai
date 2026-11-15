@@ -1,16 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { ArrowDownRight, ArrowUpRight, Gift, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Gift, MessageCircleQuestion, RefreshCw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { Bar, BarChart, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { PeriodSwitcher } from '../components/PeriodSwitcher';
+import { DueSoonList, SafeToSpendCard } from '../components/BillParts';
 import { PetStrip } from '../components/Pet';
+import { QuestsPanel } from '../components/Quests';
 import { useTransactionEditor } from '../components/TransactionEditor';
 import { Button, Empty, ErrorNote, SectionTitle, Spinner } from '../components/ui';
 import { api, type CategoryTotal, type Overview as OverviewData } from '../lib/api';
 import { change, currentMonthKey, monthLabel, money, percent, shortDate, today } from '../lib/format';
-import { keys, useCurrency, usePeriod } from '../lib/hooks';
+import { keys, useBills, useCurrency, usePeriod } from '../lib/hooks';
 import { CategoryIcon } from '../lib/icons';
 
 export default function Overview() {
@@ -60,11 +62,13 @@ export default function Overview() {
           ) : (
             <div className="grid grid-cols-1 gap-x-12 gap-y-12 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
               <div className="grid min-w-0 grid-cols-1 content-start gap-12">
+                {period.key === currentMonthKey() && <ThisMonth />}
                 <DailyChart data={data} isYear={period.kind === 'year'} currency={currency} />
                 <Categories rows={data.byCategory} spent={data.spent} currency={currency} periodKey={period.key} showBudget={period.kind === 'month'} />
                 <TrendChart data={data} currency={currency} />
               </div>
               <aside className="grid min-w-0 grid-cols-1 content-start gap-12">
+                <QuestsPanel />
                 <Insights from={period.from} to={period.to} />
                 <Recurring data={data} currency={currency} />
                 <Merchants data={data} currency={currency} />
@@ -152,6 +156,24 @@ function Hero({ data, title, year, currency }: { data: OverviewData; title: stri
             {segments.length > 7 && <li className="text-ink-faint">+{segments.length - 7} more</li>}
           </ul>
         </>
+      )}
+    </section>
+  );
+}
+
+// ---------- This month: safe to spend and what's due ----------
+
+function ThisMonth() {
+  const { data } = useBills();
+  if (!data || (!data.safeToSpend && data.dueSoon.length === 0)) return null;
+  return (
+    <section className="grid gap-4 sm:grid-cols-2" aria-label="This month">
+      {data.safeToSpend && <SafeToSpendCard safe={data.safeToSpend} className={data.dueSoon.length === 0 ? 'sm:col-span-2' : undefined} />}
+      {data.dueSoon.length > 0 && (
+        <div className="min-w-0">
+          <SectionTitle aside={<Link to="/bills" className="hover:text-ink">All bills</Link>}>Coming up</SectionTitle>
+          <DueSoonList items={data.dueSoon.slice(0, 4)} overview={data} compact />
+        </div>
       )}
     </section>
   );
@@ -339,9 +361,14 @@ function Insights({ from, to }: { from: string; to: string }) {
       {!q.data && !q.isFetching && (
         <div className="border-l-[3px] border-ochre bg-ochre-soft/50 py-4 pr-4 pl-4">
           <p className="text-ink-soft">Get a short read on this period: what changed, what's over budget, and where you could save.</p>
-          <Button className="mt-3" onClick={() => q.refetch()}>
-            <Sparkles className="size-4 text-ochre" aria-hidden /> Write my summary
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button onClick={() => q.refetch()}>
+              <Sparkles className="size-4 text-ochre" aria-hidden /> Write my summary
+            </Button>
+            <Link to="/ask" className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-[0.93rem] font-medium text-ink-soft hover:bg-sunken hover:text-ink">
+              <MessageCircleQuestion className="size-4" aria-hidden /> Ask a question
+            </Link>
+          </div>
           <ErrorNote error={q.error} className="mt-3" />
         </div>
       )}
@@ -379,7 +406,15 @@ function Recurring({ data, currency }: { data: OverviewData; currency: string })
   const monthlyTotal = data.recurring.reduce((sum, r) => sum + r.typicalAmount, 0);
   return (
     <section>
-      <SectionTitle aside={<span className="num">{money(monthlyTotal, currency)} a month</span>}>Recurring charges</SectionTitle>
+      <SectionTitle
+        aside={
+          <Link to="/bills" className="hover:text-ink">
+            <span className="num">{money(monthlyTotal, currency)}</span> a month · Track as bills
+          </Link>
+        }
+      >
+        Recurring charges
+      </SectionTitle>
       <ul className="grid gap-2.5">
         {data.recurring.map((r) => (
           <li key={r.merchant} className="flex items-baseline justify-between gap-3">

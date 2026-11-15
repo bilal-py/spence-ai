@@ -164,6 +164,10 @@ public class AppSettings
     public string PetName { get; set; } = "Sprig";
     /// <summary>The day the user last dismissed a nudge; nothing more is shown until the next day.</summary>
     public DateOnly? PetNudgeDismissedOn { get; set; }
+    /// <summary>The accessory Sprig wears ("flower", "shades"…); null = the best one unlocked so far.</summary>
+    public string? PetAccessory { get; set; }
+    /// <summary>Merchant keys of spotted repeat charges the user said aren't bills, one per line.</summary>
+    public string? DismissedBillSuggestions { get; set; }
 }
 
 /// <summary>Where money in a savings pot came from.</summary>
@@ -251,4 +255,84 @@ public class PotChallenge
     public decimal Reward { get; set; }
     public DateTime? ClaimedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public enum BillCadence
+{
+    Weekly,
+    Monthly,
+    Yearly,
+}
+
+/// <summary>
+/// A payment that comes round on a schedule (rent, phone, Netflix, an EMI, a SIP). Whether an occurrence is paid is worked out live
+/// from transactions matching <see cref="MatchPattern"/>; <see cref="BillMark"/> rows only record what the user said by hand.
+/// </summary>
+public class Bill
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    /// <summary>The expected amount. When <see cref="AmountVaries"/>, it's a typical amount (electricity, a card bill).</summary>
+    public decimal Amount { get; set; }
+    public bool AmountVaries { get; set; }
+    /// <summary>Expense, or Transfer for money that isn't spending (card bills, SIPs, savings).</summary>
+    public TransactionType Type { get; set; } = TransactionType.Expense;
+    public BillCadence Cadence { get; set; } = BillCadence.Monthly;
+    /// <summary>Every N weeks/months/years. 1 = every one.</summary>
+    public int Interval { get; set; } = 1;
+    /// <summary>The first due date; later ones follow the cadence from here (the 31st falls back to the month's last day).</summary>
+    public DateOnly FirstDueDate { get; set; }
+    /// <summary>Last due date, e.g. the final EMI. Null = no end.</summary>
+    public DateOnly? EndsOn { get; set; }
+
+    /// <summary>Words (a merchant key) a transaction's merchant or description must contain to count as paying this bill.</summary>
+    public string MatchPattern { get; set; } = string.Empty;
+    public int? CategoryId { get; set; }
+    public Category? Category { get; set; }
+    public int? AccountId { get; set; }
+    public Account? Account { get; set; }
+
+    /// <summary>Paid automatically (card, mandate). Changes the wording, not the matching.</summary>
+    public bool Autopay { get; set; }
+    public bool IsSubscription { get; set; }
+    public int RemindDaysBefore { get; set; } = 3;
+    public bool IsPaused { get; set; }
+    /// <summary>Set when the user decided to cancel a subscription. Charges after this are flagged.</summary>
+    public DateOnly? CancelledOn { get; set; }
+    public DateOnly? LastReviewedOn { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<BillMark> Marks { get; set; } = new List<BillMark>();
+}
+
+public enum BillMarkKind
+{
+    /// <summary>Paid by hand; <see cref="BillMark.TransactionId"/> is the transaction Spence logged for it.</summary>
+    Paid,
+    Skipped,
+}
+
+/// <summary>What the user said about one due date. Deleting the linked transaction deletes the mark, so the bill shows as unpaid again.</summary>
+public class BillMark
+{
+    public int Id { get; set; }
+    public int BillId { get; set; }
+    public Bill? Bill { get; set; }
+    public DateOnly DueDate { get; set; }
+    public BillMarkKind Kind { get; set; }
+    public int? TransactionId { get; set; }
+    public Transaction? Transaction { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>A side quest finished in a given week. Recorded when first seen done, so XP never goes backwards.</summary>
+public class QuestCompletion
+{
+    public int Id { get; set; }
+    /// <summary>Monday of the quest's week.</summary>
+    public DateOnly WeekStart { get; set; }
+    public string Key { get; set; } = string.Empty;
+    public int Xp { get; set; }
+    public DateTime CompletedAt { get; set; } = DateTime.UtcNow;
 }

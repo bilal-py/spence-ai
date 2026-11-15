@@ -15,6 +15,9 @@ public interface IAppDbContext
     DbSet<SavingsPot> SavingsPots { get; }
     DbSet<PotContribution> PotContributions { get; }
     DbSet<PotChallenge> PotChallenges { get; }
+    DbSet<Bill> Bills { get; }
+    DbSet<BillMark> BillMarks { get; }
+    DbSet<QuestCompletion> QuestCompletions { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
 

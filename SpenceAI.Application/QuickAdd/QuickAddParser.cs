@@ -7,6 +7,7 @@ namespace SpenceAI.Application.QuickAdd;
 /// <summary>One entry of quick-add text, read with plain rules (no AI).</summary>
 /// <param name="TypeStated">A word in the line said the type ("got", "refund", "card bill"), so a rule mustn't override it.</param>
 /// <param name="Unsure">Fields the user should double-check: "amount", "merchant", "account".</param>
+/// <param name="Repeat">Set when the line says it repeats ("monthly on 5th"): it becomes a bill instead of a transaction.</param>
 public record ParsedLine(
     string Text,
     DateOnly Date,
@@ -15,7 +16,11 @@ public record ParsedLine(
     bool TypeStated,
     string Merchant,
     int? AccountId,
-    IReadOnlyList<string> Unsure);
+    IReadOnlyList<string> Unsure,
+    Repeat? Repeat = null);
+
+/// <summary>How a quick-add line repeats, and its next due date (today or later).</summary>
+public record Repeat(BillCadence Cadence, int Interval, DateOnly NextDue);
 
 /// <summary>
 /// Reads lines like "chai 40 upi", "uber 250 yesterday", "got 80k salary" or "amazon refund 499 on 12 nov".
@@ -86,7 +91,15 @@ public static partial class QuickAddParser
         var used = new bool[tokens.Count];
         var unsure = new List<string>();
 
+        var repeat = ReadRepeat(tokens, used, today);
         var date = ReadDate(tokens, used, today);
+        if (repeat is not null && repeat.NextDue == today && date != today)
+        {
+            // "gym 1500 monthly 3 nov": the date given is a past due date; repeat it forward.
+            var next = date;
+            for (var n = 1; next < today && n < 1000; n++) next = Step(date, repeat.Cadence, repeat.Interval * n);
+            repeat = repeat with { NextDue = next };
+        }
 
         // Type words.
         TransactionType? type = null;
@@ -178,8 +191,99 @@ public static partial class QuickAddParser
             if (merchant.Length == 0) unsure.Add("merchant");
         }
 
-        return new ParsedLine(text, date, amount, resolvedType, type is not null, merchant, accountId, unsure);
+        if (repeat is not null && resolvedType is not (TransactionType.Expense or TransactionType.Transfer)) repeat = null;
+        return new ParsedLine(text, repeat?.NextDue ?? date, amount, resolvedType, type is not null, merchant, accountId, unsure, repeat);
     }
+
+    // ---------- Repeats ("monthly on 5th", "every 2 weeks", "yearly") ----------
+
+    private static Repeat? ReadRepeat(List<string> tokens, bool[] used, DateOnly today)
+    {
+        BillCadence? cadence = null;
+        var interval = 1;
+        for (var i = 0; i < tokens.Count && cadence is null; i++)
+        {
+            var w = Word(tokens[i]);
+            var next = i + 1 < tokens.Count ? Word(tokens[i + 1]) : "";
+            var after = i + 2 < tokens.Count ? Word(tokens[i + 2]) : "";
+            (BillCadence, int)? found = w switch
+            {
+                "monthly" or "/month" or "/mo" => (BillCadence.Monthly, 1),
+                "weekly" or "/week" or "/wk" => (BillCadence.Weekly, 1),
+                "fortnightly" or "biweekly" => (BillCadence.Weekly, 2),
+                "quarterly" => (BillCadence.Monthly, 3),
+                "yearly" or "annually" or "annual" or "/year" or "/yr" => (BillCadence.Yearly, 1),
+                _ => null,
+            };
+            if (found is not null)
+            {
+                used[i] = true;
+                (cadence, interval) = found.Value;
+                break;
+            }
+
+            if (w is "every" or "each" or "per")
+            {
+                var n = int.TryParse(next, out var parsed) && parsed is > 0 and <= 52 ? parsed : (int?)null;
+                var unit = n is null ? next : after;
+                BillCadence? c = unit switch
+                {
+                    "month" or "months" or "mo" => BillCadence.Monthly,
+                    "week" or "weeks" or "wk" => BillCadence.Weekly,
+                    "year" or "years" or "yr" => BillCadence.Yearly,
+                    _ => null,
+                };
+                if (c is null) continue;
+                cadence = c;
+                interval = n ?? 1;
+                used[i] = used[i + 1] = true;
+                if (n is not null) used[i + 2] = true;
+            }
+        }
+        if (cadence is null) return null;
+
+        // "on 5th", "on the 5th", "5th": the day of the month it's due.
+        var nextDue = today;
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            if (used[i]) continue;
+            var w = Word(tokens[i]);
+            var prev = i > 0 ? Word(tokens[i - 1]) : "";
+            var prev2 = i > 1 ? Word(tokens[i - 2]) : "";
+            var ordinal = OrdinalDay().IsMatch(w);
+            var afterOn = prev == "on" || (prev == "the" && prev2 == "on");
+
+            if (cadence == BillCadence.Weekly && Weekdays.TryGetValue(w, out var weekday))
+            {
+                used[i] = true;
+                if (prev == "on") used[i - 1] = true;
+                nextDue = today.AddDays(((int)weekday - (int)today.DayOfWeek + 7) % 7);
+                break;
+            }
+
+            if (cadence != BillCadence.Weekly && (ordinal || afterOn) && DayOf(tokens[i]) is int day && MonthOf(i + 1 < tokens.Count ? Word(tokens[i + 1]) : "") == 0)
+            {
+                used[i] = true;
+                if (prev == "on") used[i - 1] = true;
+                if (prev == "the") { used[i - 1] = true; if (prev2 == "on") used[i - 2] = true; }
+                var thisMonth = new DateOnly(today.Year, today.Month, Math.Min(day, DateTime.DaysInMonth(today.Year, today.Month)));
+                nextDue = thisMonth >= today ? thisMonth : AtDay(today.AddMonths(1), day);
+                break;
+            }
+        }
+
+        return new Repeat(cadence.Value, interval, nextDue);
+    }
+
+    private static DateOnly AtDay(DateOnly month, int day) =>
+        new(month.Year, month.Month, Math.Min(day, DateTime.DaysInMonth(month.Year, month.Month)));
+
+    private static DateOnly Step(DateOnly from, BillCadence cadence, int n) => cadence switch
+    {
+        BillCadence.Weekly => from.AddDays(7 * n),
+        BillCadence.Yearly => from.AddYears(n),
+        _ => from.AddMonths(n),
+    };
 
     // ---------- Dates ----------
 
@@ -311,4 +415,7 @@ public static partial class QuickAddParser
 
     [GeneratedRegex(@"^(\d{1,2})(?:st|nd|rd|th)?$", RegexOptions.IgnoreCase)]
     private static partial Regex DayToken();
+
+    [GeneratedRegex(@"^\d{1,2}(?:st|nd|rd|th)$", RegexOptions.IgnoreCase)]
+    private static partial Regex OrdinalDay();
 }

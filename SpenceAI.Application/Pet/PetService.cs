@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SpenceAI.Application.Analytics;
+using SpenceAI.Application.Bills;
+using SpenceAI.Application.Quests;
 using SpenceAI.Application.Savings;
 using SpenceAI.Domain;
 
@@ -11,21 +13,31 @@ namespace SpenceAI.Application.Pet;
 public record Nudge(string Key, string Text, decimal? Amount, string? Link);
 
 /// <summary>Mood: "sleepy" | "cheerful" | "content" | "watchful" | "proud".</summary>
-public record PetState(bool Enabled, string Name, string Mood, string MoodLine, Nudge? Nudge);
+/// <param name="Accessory">What the pet wears now (null = nothing). <paramref name="Unlocked"/> lists what side-quest levels have unlocked.</param>
+public record PetState(bool Enabled, string Name, string Mood, string MoodLine, Nudge? Nudge, int Level, string? Accessory, IReadOnlyList<string> Unlocked);
 
-public record PetSettingsRequest(bool Enabled, string Name);
+/// <param name="Accessory">An outfit name, "none", "auto" (the best one unlocked), or null to leave it as it is.</param>
+public record PetSettingsRequest(bool Enabled, string Name, string? Accessory = null);
 public record PetDayRequest(DateOnly? Today);
 
 /// <summary>
 /// Sprig, the mascot. Its mood follows how the month is pacing against your budgets (or your usual month), and it offers at most
 /// one short nudge a day. Plain rules, so it works without AI. It points at things you can do; it never scolds.
 /// </summary>
-public class PetService(IAppDbContext db, SavingsService savings)
+public class PetService(IAppDbContext db, SavingsService savings, BillService bills, QuestService quests)
 {
     public async Task<PetState> GetAsync(DateOnly today, CancellationToken ct)
     {
         var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync(ct) ?? new AppSettings();
-        if (!settings.PetEnabled) return new PetState(false, settings.PetName, "content", "", null);
+        var level = QuestService.Level(await quests.TotalXpAsync(ct)).Number;
+        var unlocked = QuestService.Accessories.Where(a => level >= a.Level).Select(a => a.Name).ToList();
+        var accessory = settings.PetAccessory switch
+        {
+            "none" => null,
+            { } chosen when unlocked.Contains(chosen) => chosen,
+            _ => unlocked.LastOrDefault(),
+        };
+        if (!settings.PetEnabled) return new PetState(false, settings.PetName, "content", "", null, level, accessory, unlocked);
 
         var monthStart = new DateOnly(today.Year, today.Month, 1);
         var history = await db.Transactions.AsNoTracking().Include(t => t.Category)
@@ -35,8 +47,14 @@ public class PetService(IAppDbContext db, SavingsService savings)
         var categories = await db.Categories.AsNoTracking().ToListAsync(ct);
 
         var (mood, line) = Mood(settings.PetName, history, categories, pots, today);
-        var nudge = settings.PetNudgeDismissedOn == today ? null : PickNudge(history, categories, pots, today);
-        return new PetState(true, settings.PetName, mood, line, nudge);
+        Nudge? nudge = null;
+        if (settings.PetNudgeDismissedOn != today)
+        {
+            var hasBills = await db.Bills.AnyAsync(ct);
+            var dueSoon = hasBills ? (await bills.GetOverviewAsync(today, ct)).DueSoon : null;
+            nudge = PickNudge(history, categories, pots, today, dueSoon);
+        }
+        return new PetState(true, settings.PetName, mood, line, nudge, level, accessory, unlocked);
     }
 
     public async Task DismissAsync(DateOnly today, CancellationToken ct)
@@ -51,8 +69,13 @@ public class PetService(IAppDbContext db, SavingsService savings)
         var name = req.Name?.Trim() ?? "";
         if (name.Length is 0 or > 30) throw new AppException("Give your pet a name of 1 to 30 characters.");
         var settings = await db.Settings.FirstOrDefaultAsync(ct) ?? throw new AppException("Settings are missing.", 500);
+        if (req.Accessory is not (null or "none" or "auto") && QuestService.Accessories.All(a => a.Name != req.Accessory))
+        {
+            throw new AppException("That outfit doesn't exist.");
+        }
         settings.PetEnabled = req.Enabled;
         settings.PetName = name;
+        if (req.Accessory is not null) settings.PetAccessory = req.Accessory == "auto" ? null : req.Accessory;
         await db.SaveChangesAsync(ct);
         return await GetAsync(today, ct);
     }
@@ -104,7 +127,9 @@ public class PetService(IAppDbContext db, SavingsService savings)
     }
 
     /// <summary>The most useful single nudge for today, or null when there's nothing worth saying.</summary>
-    public static Nudge? PickNudge(List<Transaction> history, List<Category> categories, List<PotView> pots, DateOnly today)
+    /// <param name="dueSoon">Bills worth a reminder, or null when no bills are set up (then detected repeat charges are used).</param>
+    public static Nudge? PickNudge(List<Transaction> history, List<Category> categories, List<PotView> pots, DateOnly today,
+        IReadOnlyList<CalendarItem>? dueSoon = null)
     {
         var active = pots.Where(p => !p.IsArchived).ToList();
 
@@ -147,7 +172,16 @@ public class PetService(IAppDbContext db, SavingsService savings)
             }
         }
 
-        var due = AnalyticsService.FindRecurring(history.Where(t => t.Type == TransactionType.Expense), today)
+        var bill = dueSoon?.FirstOrDefault(b => b.Status == "late") ?? dueSoon?.FirstOrDefault(b => b.DueDate <= today.AddDays(3));
+        if (bill is not null)
+        {
+            if (bill.Status == "late") return new Nudge("bill-late", $"{bill.Name} was due {bill.DueDate:d MMM}. Paid it? Tick it off on Bills.", null, "/bills");
+            var when = bill.DueDate == today ? "today" : bill.DueDate == today.AddDays(1) ? "tomorrow" : $"on {bill.DueDate:ddd d MMM}";
+            var how = bill.Autopay ? "goes out" : "is due";
+            return new Nudge("bill-due", $"{bill.Name} ({{amount}}) {how} {when}.", bill.Amount, "/bills");
+        }
+
+        var due = dueSoon is not null ? default : AnalyticsService.FindRecurring(history.Where(t => t.Type == TransactionType.Expense), today)
             .Select(r => (r, Next: r.LastDate.AddMonths(1)))
             .Where(x => x.Next >= today && x.Next <= today.AddDays(3))
             .OrderBy(x => x.Next)

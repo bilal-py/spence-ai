@@ -4,8 +4,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SpenceAI.Application;
 using SpenceAI.Application.Analytics;
+using SpenceAI.Application.Ask;
+using SpenceAI.Application.Bills;
 using SpenceAI.Application.Imports;
 using SpenceAI.Application.Pet;
+using SpenceAI.Application.Quests;
 using SpenceAI.Application.QuickAdd;
 using SpenceAI.Application.Savings;
 using SpenceAI.Application.Settings;
@@ -58,6 +61,9 @@ public static class DependencyInjection
         services.AddScoped<SavingsService>();
         services.AddScoped<WrappedService>();
         services.AddScoped<PetService>();
+        services.AddScoped<BillService>();
+        services.AddScoped<QuestService>();
+        services.AddScoped<AskService>();
 
         return services;
     }

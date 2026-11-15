@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261114202222_SavingsPotsAndPet";
+    public override string LastMigrationId => "20261114220622_BillsQuests";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -89,9 +89,17 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(3)
                     .HasColumnType("TEXT");
 
+                b.Property<string>("DismissedBillSuggestions")
+                    .HasMaxLength(4000)
+                    .HasColumnType("TEXT");
+
                 b.Property<string>("OllamaUrl")
                     .IsRequired()
                     .HasMaxLength(200)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("PetAccessory")
+                    .HasMaxLength(20)
                     .HasColumnType("TEXT");
 
                 b.Property<bool>("PetEnabled")
@@ -115,6 +123,124 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.HasKey("Id");
 
                 b.ToTable("Settings");
+            });
+
+        modelBuilder.Entity("SpenceAI.Domain.Bill", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<int?>("AccountId")
+                    .HasColumnType("INTEGER");
+
+                b.Property<decimal>("Amount")
+                    .HasColumnType("TEXT");
+
+                b.Property<bool>("AmountVaries")
+                    .HasColumnType("INTEGER");
+
+                b.Property<bool>("Autopay")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("Cadence")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly?>("CancelledOn")
+                    .HasColumnType("TEXT");
+
+                b.Property<int?>("CategoryId")
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly?>("EndsOn")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly>("FirstDueDate")
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("Interval")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasDefaultValue(1);
+
+                b.Property<bool>("IsPaused")
+                    .HasColumnType("INTEGER");
+
+                b.Property<bool>("IsSubscription")
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateOnly?>("LastReviewedOn")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("MatchPattern")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(60)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Notes")
+                    .HasMaxLength(500)
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("RemindDaysBefore")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasDefaultValue(3);
+
+                b.Property<string>("Type")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.HasIndex("AccountId");
+
+                b.HasIndex("CategoryId");
+
+                b.ToTable("Bills");
+            });
+
+        modelBuilder.Entity("SpenceAI.Domain.BillMark", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<int>("BillId")
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly>("DueDate")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Kind")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("TEXT");
+
+                b.Property<int?>("TransactionId")
+                    .HasColumnType("INTEGER");
+
+                b.HasKey("Id");
+
+                b.HasIndex("TransactionId");
+
+                b.HasIndex("BillId", "DueDate")
+                    .IsUnique();
+
+                b.ToTable("BillMarks");
             });
 
         modelBuilder.Entity("SpenceAI.Domain.Category", b =>
@@ -316,6 +442,34 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("PotContributions");
             });
 
+        modelBuilder.Entity("SpenceAI.Domain.QuestCompletion", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime>("CompletedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Key")
+                    .IsRequired()
+                    .HasMaxLength(40)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateOnly>("WeekStart")
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("Xp")
+                    .HasColumnType("INTEGER");
+
+                b.HasKey("Id");
+
+                b.HasIndex("WeekStart", "Key")
+                    .IsUnique();
+
+                b.ToTable("QuestCompletions");
+            });
+
         modelBuilder.Entity("SpenceAI.Domain.SavingsPot", b =>
             {
                 b.Property<int>("Id")
@@ -449,6 +603,41 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("Transactions");
             });
 
+        modelBuilder.Entity("SpenceAI.Domain.Bill", b =>
+            {
+                b.HasOne("SpenceAI.Domain.Account", "Account")
+                    .WithMany()
+                    .HasForeignKey("AccountId")
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                b.HasOne("SpenceAI.Domain.Category", "Category")
+                    .WithMany()
+                    .HasForeignKey("CategoryId")
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                b.Navigation("Account");
+
+                b.Navigation("Category");
+            });
+
+        modelBuilder.Entity("SpenceAI.Domain.BillMark", b =>
+            {
+                b.HasOne("SpenceAI.Domain.Bill", "Bill")
+                    .WithMany("Marks")
+                    .HasForeignKey("BillId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.HasOne("SpenceAI.Domain.Transaction", "Transaction")
+                    .WithMany()
+                    .HasForeignKey("TransactionId")
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                b.Navigation("Bill");
+
+                b.Navigation("Transaction");
+            });
+
         modelBuilder.Entity("SpenceAI.Domain.MerchantRule", b =>
             {
                 b.HasOne("SpenceAI.Domain.Category", "Category")
@@ -515,6 +704,11 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
         modelBuilder.Entity("SpenceAI.Domain.Account", b =>
             {
                 b.Navigation("Transactions");
+            });
+
+        modelBuilder.Entity("SpenceAI.Domain.Bill", b =>
+            {
+                b.Navigation("Marks");
             });
 
         modelBuilder.Entity("SpenceAI.Domain.Category", b =>
