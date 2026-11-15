@@ -1,8 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Download, Eye, EyeOff, Images } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { useToast } from '../components/Toast';
 import { Button, Empty, ErrorNote, PageHeader, Spinner } from '../components/ui';
+import { celebrate } from '../lib/celebrate';
 import { api } from '../lib/api';
 import { currentMonthKey, money, today } from '../lib/format';
 import { keys, useCurrency } from '../lib/hooks';
@@ -29,6 +31,26 @@ export default function Wrapped() {
   const day = today();
 
   const { data, error, isPending } = useQuery({ queryKey: [...keys.wrapped, m, day], queryFn: () => api.wrapped(m, day) });
+
+  // Looking back at last month is a monthly quest. Tell the server once per visit; it ignores repeats.
+  const qc = useQueryClient();
+  const toast = useToast();
+  const reported = useRef(false);
+  useEffect(() => {
+    if (!data || m !== lastMonth || reported.current) return;
+    reported.current = true;
+    api.wrappedSeen(m, day).then(
+      (quest) => {
+        if (!quest) return;
+        qc.invalidateQueries({ queryKey: keys.quests });
+        celebrate({ emoji: ['⭐'] });
+        toast.show(`Quest done: ${quest.title}. +${quest.xp} XP`);
+      },
+      () => {
+        /* a quest is a bonus; never get in the way of the page */
+      },
+    );
+  }, [data, m, lastMonth, day, qc, toast]);
 
   const toggleHide = () => {
     setHide((h) => {

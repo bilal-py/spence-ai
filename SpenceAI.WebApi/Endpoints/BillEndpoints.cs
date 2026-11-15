@@ -40,6 +40,9 @@ public static class BillEndpoints
         });
 
         app.MapGet("/api/quests", (DateOnly? today, QuestService s, CancellationToken ct) => s.GetAsync(Today(today), ct)).WithTags("Quests");
+        // Opening last month's Wrapped completes this month's "look back" quest. Returns the quest, or 204 if nothing new.
+        app.MapPost("/api/quests/wrapped-seen", async (WrappedSeenRequest req, QuestService s, CancellationToken ct) =>
+            await s.WrappedSeenAsync(req.Month, Today(req.Today), ct) is { } quest ? Results.Ok(quest) : Results.NoContent()).WithTags("Quests");
 
         app.MapPost("/api/ask", (AskRequest req, AskService s, CancellationToken ct) => s.AskAsync(req, ct)).WithTags("Ask");
     }

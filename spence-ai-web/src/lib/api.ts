@@ -392,7 +392,7 @@ export interface PetState {
   unlocked: PetAccessory[];
 }
 
-export type PetAccessory = 'flower' | 'bowtie' | 'shades' | 'crown';
+export type PetAccessory = 'flower' | 'bowtie' | 'shades' | 'crown' | 'scarf' | 'acorn';
 
 // ---- Bills (SpenceAI.Application.Bills) ----
 
@@ -532,12 +532,22 @@ export interface Streak {
   best: number;
   unit: 'days' | 'weeks' | 'bills';
   alive: boolean;
+  /** First day of the current run. */
+  since: string | null;
+  /** The next length that pays a streak bonus, worth `nextMilestoneXp`. */
+  nextMilestone: number | null;
+  nextMilestoneXp: number | null;
 }
 
 export interface QuestsState {
   weekStart: string;
   weekEnd: string;
   quests: Quest[];
+  /** A harder fourth quest, once the week's three are done. */
+  bonus: Quest | null;
+  monthly: Quest[];
+  /** One-time goals; `done` = earned. */
+  achievements: Quest[];
   streaks: Streak[];
   level: { number: number; title: string; xp: number; levelStartXp: number; nextLevelXp: number };
   unlocked: PetAccessory[];
@@ -699,6 +709,8 @@ export const api = {
     calendarUrl: () => `${API_URL}/bills/calendar.ics`,
   },
   quests: (today: string) => request<QuestsState>(`/quests${qs({ today })}`),
+  /** Opening last month's Wrapped completes this month's "look back" quest. Returns it, or null when nothing new. */
+  wrappedSeen: (month: string, today: string) => request<Quest | null>('/quests/wrapped-seen', json('POST', { month: `${month}-01`, today })),
   ask: (messages: AskMessage[], today: string) => request<AskResponse>('/ask', json('POST', { messages, today })),
   settings: {
     get: () => request<Settings>('/settings'),

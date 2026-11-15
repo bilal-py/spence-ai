@@ -203,11 +203,11 @@ public sealed class BillTests : IDisposable
     [Fact]
     public async Task Quests_record_completions_once_and_build_levels()
     {
-        var quests = new QuestService(_db);
+        var quests = new QuestService(_db, new SpenceAI.Application.Savings.SavingsService(_db));
         Spend(Today, 50, "Chai");
         var first = await quests.GetAsync(Today, default);
         Assert.Equal(QuestService.QuestsPerWeek, first.Quests.Count);
-        Assert.Equal(first.JustCompleted.Count, first.Quests.Count(q => q.Done));
+        Assert.Equal(first.JustCompleted.Count(q => !q.Key.Contains(':')), first.Quests.Count(q => q.Done));
 
         var second = await quests.GetAsync(Today, default);
         Assert.Empty(second.JustCompleted);
@@ -217,6 +217,73 @@ public sealed class BillTests : IDisposable
         Assert.Equal(2, QuestService.Level(60).Number);
         Assert.Equal(7, QuestService.Level(1000).Number);
         Assert.Equal(8, QuestService.Level(1400).Number);
+    }
+
+    private QuestService Quests() => new(_db, new SpenceAI.Application.Savings.SavingsService(_db));
+
+    [Fact]
+    public async Task Bonus_quest_appears_once_the_week_s_three_are_done()
+    {
+        var week = QuestService.WeekStartOf(Today);
+        Assert.Null((await Quests().GetAsync(Today, default)).Bonus);
+
+        foreach (var key in new[] { "a", "b", "c" }) _db.QuestCompletions.Add(new QuestCompletion { WeekStart = week, Key = key, Xp = 10 });
+        // Other kinds in the same week don't count toward the three.
+        _db.QuestCompletions.Add(new QuestCompletion { WeekStart = week.AddDays(1), Key = "x", Xp = 10 });
+        await _db.SaveChangesAsync();
+
+        var bonus = (await Quests().GetAsync(Today, default)).Bonus;
+        Assert.NotNull(bonus);
+        Assert.StartsWith("bonus-", bonus.Key);
+    }
+
+    [Fact]
+    public void Streak_bonuses_pay_once_per_run()
+    {
+        var logged = Enumerable.Range(0, 8).Select(i => Today.AddDays(-i)).ToHashSet();
+        var data = new QuestService.QuestData([], [], [], [], logged, null, false);
+        var streak = QuestService.Streaks(Today, data).Single(s => s.Key == "check-in");
+        Assert.Equal(Today.AddDays(-7), streak.Since);
+        Assert.Equal(14, streak.NextMilestone);
+
+        var bonus = Assert.Single(QuestService.StreakBonuses([streak]));
+        Assert.Equal("streak:check-in:7", bonus.Quest.Key);
+        Assert.Equal(Today.AddDays(-7), bonus.Since);
+
+        // A new run starting later pays again; the same run doesn't.
+        var later = QuestService.StreakBonuses([streak with { Since = Today.AddDays(30) }]).Single();
+        Assert.NotEqual(bonus.Since, later.Since);
+    }
+
+    [Fact]
+    public async Task Achievements_are_earned_once_and_stay_earned()
+    {
+        foreach (var name in new[] { "Netflix", "Rent", "Gym" }) await _bills.CreateAsync(Bill(name), Today, default);
+
+        var first = await Quests().GetAsync(Today, default);
+        Assert.Contains(first.JustCompleted, q => q.Key == "ach:bills-3");
+        Assert.True(first.Achievements.Single(a => a.Key == "ach:bills-3").Done);
+
+        _db.Bills.RemoveRange(_db.Bills);
+        await _db.SaveChangesAsync();
+        var second = await Quests().GetAsync(Today, default);
+        Assert.DoesNotContain(second.JustCompleted, q => q.Key == "ach:bills-3");
+        Assert.True(second.Achievements.Single(a => a.Key == "ach:bills-3").Done);
+    }
+
+    [Fact]
+    public async Task Opening_last_month_s_wrapped_completes_the_look_back_quest_once()
+    {
+        Spend(new DateOnly(2026, 10, 12), 300, "Blue Tokai");
+
+        Assert.Null(await Quests().WrappedSeenAsync(new DateOnly(2026, 9, 1), Today, default));
+        var quest = await Quests().WrappedSeenAsync(new DateOnly(2026, 10, 1), Today, default);
+        Assert.NotNull(quest);
+        Assert.Equal("Look back at October", quest.Title);
+        Assert.Null(await Quests().WrappedSeenAsync(new DateOnly(2026, 10, 1), Today, default));
+
+        var state = await Quests().GetAsync(Today, default);
+        Assert.True(state.Monthly.Single(q => q.Key == "month:wrapped").Done);
     }
 
     [Fact]

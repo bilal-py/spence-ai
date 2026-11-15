@@ -53,6 +53,19 @@ export function Sprig({ mood, className, accessory }: { mood: PetMood; className
             <circle cx="32" cy="54" r="1.8" fill="var(--brick)" stroke="var(--paper)" strokeWidth="0.8" />
           </g>
         )}
+        {accessory === 'scarf' && (
+          <g>
+            <path d="M14.5 49 Q32 56.5 49.5 49 L50.5 53.2 Q32 61 13.5 53.2 Z" fill="#d9663b" />
+            <path d="M40.5 54.5 l2.6 8.6 4.2 -1.4 -2.2 -8.4 Z" fill="#d9663b" />
+            <path d="M20 51.6 v3 M26 53.4 v3 M38 53.4 v3 M44 51.6 v3" stroke="var(--paper)" strokeOpacity="0.55" strokeWidth="1.4" strokeLinecap="round" />
+          </g>
+        )}
+        {accessory === 'acorn' && (
+          <g>
+            <path d="M15.5 31 C16 19.5 48 19.5 48.5 31 C40 27.5 24 27.5 15.5 31 Z" fill="#8a5a2b" stroke="var(--ink)" strokeWidth="1" strokeLinejoin="round" />
+            <path d="M22 25.5 l3.5 3.2 M29.5 23 l3.5 4.2 M37.5 23.5 l3.5 4" stroke="#5e3b1a" strokeWidth="1.2" strokeLinecap="round" />
+          </g>
+        )}
         {accessory === 'crown' && (
           <path d="M24.5 25 L24 18.5 L28.2 21.5 L32 16 L35.8 21.5 L40 18.5 L39.5 25 Z" fill="var(--ochre)" stroke="var(--ink)" strokeWidth="1" strokeLinejoin="round" />
         )}
@@ -240,6 +253,8 @@ const OUTFITS: { name: PetAccessory; label: string; level: number }[] = [
   { name: 'bowtie', label: 'Bow tie', level: 3 },
   { name: 'shades', label: 'Shades', level: 4 },
   { name: 'crown', label: 'Crown', level: 5 },
+  { name: 'scarf', label: 'Scarf', level: 6 },
+  { name: 'acorn', label: 'Acorn cap', level: 7 },
 ];
 
 function OutfitButton({ label, selected, lockedAt, onClick, children }: {
