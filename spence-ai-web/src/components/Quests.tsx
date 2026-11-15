@@ -1,10 +1,11 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { CalendarCheck, Check, Feather, Flame, Leaf, Receipt } from 'lucide-react';
 import { useEffect } from 'react';
 import type { PetAccessory, Streak } from '../lib/api';
 import { celebrate } from '../lib/celebrate';
 import { money, shortDate } from '../lib/format';
-import { useCurrency, useQuests } from '../lib/hooks';
+import { keys, useCurrency, useQuests } from '../lib/hooks';
 import { useToast } from './Toast';
 import { SectionTitle } from './ui';
 
@@ -37,11 +38,14 @@ export function QuestsPanel() {
   const { data } = useQuests();
   const toast = useToast();
   const currency = useCurrency();
+  const qc = useQueryClient();
 
   useEffect(() => {
     if (!data) return;
     const before = readLevel();
     writeLevel(data.level.number);
+    // New XP can change the pet's outfit, so refetch it rather than wait for the next write.
+    if (before !== data.level.number || data.justCompleted.length > 0) qc.invalidateQueries({ queryKey: keys.pet });
     if (before !== null && data.level.number > before) {
       const outfit = data.unlocked[data.unlocked.length - 1];
       celebrate({ big: true, emoji: ['🌱', '✨', '🎉'] });
@@ -53,7 +57,7 @@ export function QuestsPanel() {
       const q = data.justCompleted[0];
       toast.show(data.justCompleted.length === 1 ? `Quest done: ${q.title}. +${q.xp} XP` : `${data.justCompleted.length} quests done. +${data.justCompleted.reduce((s, x) => s + x.xp, 0)} XP`);
     }
-  }, [data, toast]);
+  }, [data, toast, qc]);
 
   if (!data) return null;
   const level = data.level;

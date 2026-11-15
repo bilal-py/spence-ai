@@ -50,6 +50,7 @@ public class QuestService(IAppDbContext db)
         // Settle last week too, in case the app wasn't opened before it ended.
         var justCompleted = new List<QuestView>();
         var added = false;
+        var levelBefore = Level(saved.Sum(s => s.Xp)).Number;
         foreach (var (start, asOf) in new[] { (week.AddDays(-7), week.AddDays(-1)), (week, today) })
         {
             foreach (var q in Quests(start, asOf, data).Where(q => q.Done))
@@ -62,7 +63,17 @@ public class QuestService(IAppDbContext db)
                 if (start == week) justCompleted.Add(q);
             }
         }
-        if (added) await db.SaveChangesAsync(ct);
+        if (added)
+        {
+            // A level that unlocks an outfit puts it on the pet straight away ("auto" = best unlocked), unless they chose none.
+            var levelAfter = Level(saved.Sum(s => s.Xp)).Number;
+            if (Accessories.Any(a => a.Level > levelBefore && a.Level <= levelAfter)
+                && await db.Settings.FirstOrDefaultAsync(ct) is { } settings && settings.PetAccessory != "none")
+            {
+                settings.PetAccessory = null;
+            }
+            await db.SaveChangesAsync(ct);
+        }
 
         var quests = Quests(week, today, data)
             .Select(q => saved.Any(s => s.WeekStart == week && s.Key == q.Key) ? q with { Done = true, Progress = q.Goal } : q)
