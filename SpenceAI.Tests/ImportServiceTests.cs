@@ -173,10 +173,12 @@ public sealed class ImportServiceTests : IDisposable
     public async Task Amounts_printed_with_a_plus_become_refunds_that_reduce_spending()
     {
         _ai.Reply(
-            new { Date = "2026-11-03", DatePrinted = "03/11/2026", Amount = 404, Type = "expense", Description = "SUPREME PETROLEUM", Merchant = "Supreme Petroleum", Category = "Fuel" },
-            new { Date = "2026-11-03", DatePrinted = "03/11/2026", Amount = 4, Type = "expense", Description = "PETRO SURCHARGE WAIVER", Merchant = (string?)null, Category = "Fuel" });
+            new { Date = "2026-11-13", DatePrinted = "13/11/2026", Amount = 404, Type = "expense", Description = "SUPREME PETROLEUM", Merchant = "Supreme Petroleum", Category = "Fuel" },
+            new { Date = "2026-11-13", DatePrinted = "13/11/2026", Amount = 4, Type = "expense", Description = "PETRO SURCHARGE WAIVER", Merchant = (string?)null, Category = "Fuel" });
 
-        var batch = await RunImportAsync("03/11/2026 SUPREME PETROLEUMKANPUR NAGAR ₹ 404.00\n03/11/2026 PETRO SURCHARGE WAIVER + ₹ 4.00\n");
+        // 13/11 is unambiguous (day-first). An ambiguous date like 03/11 falls back to machine culture,
+        // which is month-first on the CI runner and would put these rows in March.
+        var batch = await RunImportAsync("13/11/2026 SUPREME PETROLEUMKANPUR NAGAR ₹ 404.00\n13/11/2026 PETRO SURCHARGE WAIVER + ₹ 4.00\n");
 
         Assert.Equal(TransactionType.Expense, batch.Rows![0].Type);
         Assert.Equal(TransactionType.Refund, batch.Rows[1].Type);
