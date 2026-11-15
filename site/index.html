@@ -5,12 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Spence: know where the month went</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-<meta name="description" content="Spence is a private expense tracker that reads your bank statements, sorts every transaction and shows where your money goes. It runs on your own computer." />
+<meta name="description" content="Spence is a private expense tracker that reads your bank statements, sorts every transaction, tracks bills and shows where your money goes. It runs on your own computer." />
 <meta property="og:title" content="Spence: know where the month went" />
 <meta property="og:description" content="Drop in a statement, type 'chai 40 upi', and see the month clearly. Private, local-first, AI-assisted." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet" />
+<script>
+  // Theme and "JS is on" before first paint, so nothing flashes.
+  document.documentElement.classList.add('js');
+  try { const t = localStorage.getItem('spence-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}
+</script>
 <style>
   :root {
     --paper: #eef0e9; --surface: #f8f9f5; --sunken: #e4e7de; --ink: #18211d; --ink-soft: #5d6862; --ink-faint: #8b948e;
@@ -21,37 +26,55 @@
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --paper: #0f1714; --surface: #16201c; --sunken: #0b120f; --ink: #e4eae3; --ink-soft: #a3aea7; --ink-faint: #6f7b74;
       --line: #2a3631; --pine: #6fc2a0; --pine-strong: #8fd4b6; --pine-soft: #1d3a2f; --ochre: #e3b65a; --ochre-soft: #3a3020;
       --brick: #e57c62; --brick-soft: #3c2219; --on-pine: #0f1714;
       color-scheme: dark;
     }
   }
+  :root[data-theme="dark"] {
+    --paper: #0f1714; --surface: #16201c; --sunken: #0b120f; --ink: #e4eae3; --ink-soft: #a3aea7; --ink-faint: #6f7b74;
+    --line: #2a3631; --pine: #6fc2a0; --pine-strong: #8fd4b6; --pine-soft: #1d3a2f; --ochre: #e3b65a; --ochre-soft: #3a3020;
+    --brick: #e57c62; --brick-soft: #3c2219; --on-pine: #0f1714;
+    color-scheme: dark;
+  }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; transition: background .25s, color .25s; }
   a { color: inherit; }
+  button { font: inherit; color: inherit; }
   .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+  @media (max-width: 560px) { .wrap { padding: 0 16px; } }
   h1, h2, h3 { font-family: var(--display); letter-spacing: -0.025em; margin: 0; }
   p { margin: 0; }
   .num { font-variant-numeric: tabular-nums; }
   .eyebrow { color: var(--pine); font-weight: 600; font-size: 0.92rem; margin-bottom: 14px; }
   .soft { color: var(--ink-soft); }
-  .btn { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 20px; border-radius: 9px; font-weight: 600; text-decoration: none; transition: background .15s, border-color .15s; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 20px; border-radius: 9px; font-weight: 600; text-decoration: none; transition: background .15s, border-color .15s, transform .15s; border: 0; cursor: pointer; }
+  .btn:active { transform: scale(.97); }
   .btn-primary { background: var(--pine); color: var(--on-pine); }
   .btn-primary:hover { background: var(--pine-strong); }
   .btn-ghost { border: 1px solid var(--line); background: var(--surface); }
   .btn-ghost:hover { border-color: var(--ink-faint); }
+  .btn-sm { height: 34px; padding: 0 14px; font-size: .9rem; border-radius: 8px; }
+  :focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
+  kbd { font-family: var(--sans); font-weight: 700; font-size: .85em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; background: var(--surface); }
 
   /* Nav */
-  nav.top { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  nav.top { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; gap: 12px; }
   .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--display); font-weight: 800; font-size: 1.55rem; letter-spacing: -0.04em; }
   .brand svg { width: 32px; height: 32px; }
-  nav.top .links { display: flex; gap: 26px; align-items: center; font-size: 0.95rem; }
+  nav.top .links { display: flex; gap: 22px; align-items: center; font-size: 0.95rem; }
   nav.top .links a:not(.btn) { text-decoration: none; color: var(--ink-soft); }
   nav.top .links a:not(.btn):hover { color: var(--ink); }
-  @media (max-width: 760px) { nav.top .links a:not(.btn) { display: none; } }
+  .theme-btn { width: 40px; height: 40px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; cursor: pointer; }
+  .theme-btn svg { width: 18px; height: 18px; }
+  .theme-btn .moon { display: none; }
+  :root[data-theme="dark"] .theme-btn .sun { display: none; }
+  :root[data-theme="dark"] .theme-btn .moon { display: block; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .theme-btn .sun { display: none; } :root:not([data-theme="light"]) .theme-btn .moon { display: block; } }
+  @media (max-width: 860px) { nav.top .links a:not(.btn) { display: none; } }
 
   /* Hero */
   .hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 56px; align-items: center; padding: 48px 0 80px; }
@@ -63,13 +86,15 @@
   @media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding-top: 24px; } }
 
   /* Product mock */
-  .mock { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px; box-shadow: 0 30px 60px -30px rgb(0 0 0 / .25); position: relative; }
+  .mock { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px; box-shadow: 0 30px 60px -30px rgb(0 0 0 / .25); position: relative; transition: transform .4s cubic-bezier(.2,.7,.2,1); }
   .mock .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
   .mock .month { font-family: var(--display); font-weight: 800; font-size: 3.2rem; line-height: .85; letter-spacing: -0.045em; }
   .mock .total { font-family: var(--display); font-weight: 650; font-size: 1.9rem; letter-spacing: -0.02em; text-align: right; }
   .mock .delta { font-size: 0.85rem; color: var(--pine); font-weight: 600; text-align: right; }
   .ribbon { display: flex; gap: 3px; height: 22px; border-radius: 5px; overflow: hidden; margin-top: 22px; }
-  .ribbon span { display: block; height: 100%; transform-origin: left; animation: grow .9s cubic-bezier(.2,.7,.2,1) both; }
+  .ribbon span { display: block; height: 100%; transform-origin: left; animation: grow .9s cubic-bezier(.2,.7,.2,1) both; transition: flex-grow .3s, opacity .2s; cursor: pointer; }
+  .ribbon:hover span { opacity: .45; }
+  .ribbon span:hover, .ribbon span.on { opacity: 1 !important; flex-grow: calc(var(--f) * 1.4) !important; }
   @keyframes grow { from { transform: scaleX(0); } }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 0.82rem; }
   .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
@@ -84,9 +109,20 @@
   .qa .card strong { font-family: var(--display); font-size: 1rem; margin-right: 4px; }
   .chip { border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; color: var(--ink-soft); white-space: nowrap; }
   .chip.cat { border-color: transparent; color: #fff; }
+  .chip.ai { border-color: color-mix(in srgb, var(--ochre) 60%, transparent); background: var(--ochre-soft); color: var(--ink); }
   .pet-bubble { position: absolute; left: -18px; bottom: -26px; display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px 14px 8px 8px; box-shadow: 0 14px 30px -18px rgb(0 0 0 / .35); font-size: 0.85rem; max-width: 300px; }
   .pet-bubble svg { width: 44px; height: 44px; flex-shrink: 0; }
-  @media (max-width: 560px) { .pet-bubble { position: static; margin-top: 18px; max-width: none; } .mock .month { font-size: 2.5rem; } }
+  @media (max-width: 560px) { .pet-bubble { position: static; margin-top: 18px; max-width: none; } .mock .month { font-size: 2.5rem; } .mock { padding: 18px; } }
+
+  /* Try-it quick add */
+  .try { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 12px; transition: border-color .15s, box-shadow .15s; }
+  .try:focus-within { border-color: var(--pine); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pine) 22%, transparent); }
+  .try svg { width: 20px; height: 20px; color: var(--ochre); flex-shrink: 0; }
+  .try input { flex: 1; min-width: 0; height: 50px; border: 0; background: transparent; outline: none; font: 600 1.1rem var(--display); color: var(--ink); }
+  .try input::placeholder { color: var(--ink-faint); font-weight: 500; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .examples button { border: 1px dashed var(--line); background: none; border-radius: 999px; padding: 2px 10px; font-size: .8rem; color: var(--ink-soft); cursor: pointer; }
+  .examples button:hover { border-color: var(--pine); color: var(--ink); }
 
   /* Promise strip */
   .promise { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 26px 0; }
@@ -104,57 +140,145 @@
   ul.ticks li { padding-left: 26px; position: relative; }
   ul.ticks li::before { content: ''; position: absolute; left: 2px; top: 0.5em; width: 12px; height: 7px; border-left: 2.4px solid var(--pine); border-bottom: 2.4px solid var(--pine); transform: rotate(-45deg); }
   @media (max-width: 900px) { section.feature { grid-template-columns: 1fr; gap: 32px; padding-top: 72px; } section.feature.flip .copy { order: 0; } }
-  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; min-width: 0; }
+  @media (max-width: 560px) { .panel { padding: 18px; } }
+  .hint { font-size: .82rem; color: var(--ink-faint); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .hint::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ochre); animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+
+  /* Scroll reveal */
+  .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
+  .js .reveal.in { opacity: 1; transform: none; }
 
   /* Import panel */
   .file { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: 10px; }
-  .file .doc { width: 36px; height: 44px; border-radius: 5px; background: var(--brick-soft); color: var(--brick); display: grid; place-items: center; font-size: 0.7rem; font-weight: 700; }
+  .file .doc { width: 36px; height: 44px; border-radius: 5px; background: var(--brick-soft); color: var(--brick); display: grid; place-items: center; font-size: 0.7rem; font-weight: 700; flex-shrink: 0; }
   table.review { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.88rem; }
   table.review td { padding: 9px 6px; border-top: 1px solid var(--line); }
   table.review td:last-child { text-align: right; }
   .tag { display: inline-flex; align-items: center; gap: 6px; }
   .tag i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .flag { font-size: 0.75rem; padding: 1px 7px; border-radius: 999px; background: var(--ochre-soft); color: var(--ink); margin-left: 6px; }
+  .flag { font-size: 0.75rem; padding: 1px 7px; border-radius: 999px; background: var(--ochre-soft); color: var(--ink); margin-left: 6px; white-space: nowrap; }
+
+  /* Bills */
+  .strip { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; }
+  .day { border: 1px solid var(--line); border-radius: 9px; padding: 6px 4px; text-align: center; font-size: .75rem; color: var(--ink-faint); }
+  .day b { display: block; font-family: var(--display); font-size: 1.05rem; color: var(--ink); }
+  .day i { display: block; width: 6px; height: 6px; border-radius: 50%; margin: 4px auto 0; background: transparent; }
+  .day.due i { background: var(--ochre); }
+  .day.paid i { background: var(--pine); }
+  .day.today { border-color: var(--pine); background: var(--pine-soft); }
+  .deck-wrap { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 18px; }
+  .deck { position: relative; height: 150px; margin-top: 12px; touch-action: pan-y; }
+  .sub { position: absolute; inset: 0; border-radius: 14px; border: 1px solid var(--line); background: var(--paper); padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 12px 24px -18px rgb(0 0 0 / .4); user-select: none; transition: transform .35s cubic-bezier(.2,.7,.2,1), opacity .35s; cursor: grab; }
+  .sub:active { cursor: grabbing; }
+  .sub h3 { font-size: 1.4rem; }
+  .sub .yr { font-size: .85rem; color: var(--ink-soft); }
+  .sub .stamp { position: absolute; top: 16px; right: 16px; font-family: var(--display); font-weight: 800; font-size: 1.1rem; padding: 2px 10px; border-radius: 8px; border: 2px solid; opacity: 0; transform: rotate(8deg); }
+  .sub .stamp.keep { color: var(--pine); }
+  .sub .stamp.cut { color: var(--brick); left: 16px; right: auto; transform: rotate(-8deg); }
+  .deck-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .deck-actions .pair { display: flex; gap: 8px; }
+  .btn-cut { background: var(--brick-soft); color: var(--brick); }
+  .btn-keep { background: var(--pine-soft); color: var(--pine-strong); }
+  .saved { font-size: .9rem; }
+  .saved b { font-family: var(--display); color: var(--pine); font-size: 1.1rem; }
 
   /* Pots panel */
   .pot + .pot { margin-top: 22px; }
-  .pot .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .pot .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .pot .head h3 { font-size: 1.3rem; }
   .bar { position: relative; height: 12px; border-radius: 999px; background: var(--sunken); overflow: hidden; margin-top: 10px; }
-  .bar span { position: absolute; inset: 0 auto 0 0; border-radius: 999px; }
+  .bar span { position: absolute; inset: 0 auto 0 0; border-radius: 999px; transition: width .9s cubic-bezier(.2,.7,.2,1); }
   .bar .pace { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: .55; }
   .pot .meta { margin-top: 8px; font-size: 0.86rem; color: var(--ink-soft); }
-  .claim { display: inline-flex; align-items: center; gap: 10px; margin-top: 12px; background: var(--ochre-soft); border: 1px solid color-mix(in srgb, var(--ochre) 50%, transparent); border-radius: 8px; padding: 5px 5px 5px 12px; font-size: 0.86rem; }
-  .claim button { font: inherit; font-weight: 600; border: 0; border-radius: 6px; background: var(--pine); color: var(--on-pine); padding: 4px 10px; cursor: pointer; }
+  .claim { display: inline-flex; align-items: center; gap: 10px; margin-top: 12px; background: var(--ochre-soft); border: 1px solid color-mix(in srgb, var(--ochre) 50%, transparent); border-radius: 8px; padding: 5px 5px 5px 12px; font-size: 0.86rem; transition: opacity .3s; }
+  .claim button { font-weight: 600; border: 0; border-radius: 6px; background: var(--pine); color: var(--on-pine); padding: 4px 10px; cursor: pointer; }
+  .claim button:disabled { background: transparent; color: var(--pine); cursor: default; }
+
+  /* Quests */
+  .lvl { display: flex; align-items: center; gap: 12px; }
+  .lvl .badge { width: 42px; height: 42px; border-radius: 50%; background: var(--pine); color: var(--on-pine); display: grid; place-items: center; font: 700 1.15rem var(--display); flex-shrink: 0; transition: transform .3s; }
+  .lvl .badge.pop { animation: pop .6s cubic-bezier(.2,.7,.2,1.4); }
+  @keyframes pop { 40% { transform: scale(1.3); } }
+  .lvl .info { flex: 1; min-width: 0; }
+  .lvl .info p { display: flex; justify-content: space-between; gap: 8px; font-size: .92rem; }
+  .xp { height: 7px; border-radius: 999px; background: var(--sunken); overflow: hidden; margin-top: 5px; }
+  .xp span { display: block; height: 100%; border-radius: 999px; background: var(--pine); transition: width .7s cubic-bezier(.2,.7,.2,1); }
+  .streaks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .streaks span { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: .8rem; color: var(--ink-soft); }
+  .streaks span b { color: var(--ink); }
+  .streaks span.hot { border-color: color-mix(in srgb, var(--ochre) 60%, transparent); background: var(--ochre-soft); color: var(--ink); }
+  .quests { display: grid; gap: 8px; margin-top: 14px; }
+  .quest { width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: transparent; cursor: pointer; transition: background .25s, border-color .25s; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; }
+  .quest:hover:not(.done) { border-color: var(--pine); }
+  .quest .box { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; transition: background .25s, border-color .25s; }
+  .quest .box svg { width: 11px; height: 11px; opacity: 0; transition: opacity .2s; }
+  .quest b { font-weight: 600; }
+  .quest .x { font-size: .78rem; font-weight: 700; color: var(--ochre); }
+  .quest small { grid-column: 2 / 4; color: var(--ink-soft); font-size: .84rem; }
+  .quest.done { background: color-mix(in srgb, var(--pine-soft) 70%, transparent); border-color: color-mix(in srgb, var(--pine) 45%, transparent); cursor: default; }
+  .quest.done .box { background: var(--pine); border-color: var(--pine); color: var(--on-pine); }
+  .quest.done .box svg { opacity: 1; }
+  .quest.done .x { color: var(--pine); }
+  .sprig-stage { display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 12px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line); }
+  .sprig-stage svg { width: 64px; height: 64px; flex-shrink: 0; }
+  .sprig-stage p { font-size: .9rem; }
+
+  /* Ask */
+  .chat { display: grid; gap: 10px; min-height: 230px; align-content: start; }
+  .msg { max-width: 88%; padding: 9px 13px; border-radius: 14px; font-size: .92rem; animation: rise .35s cubic-bezier(.2,.7,.2,1) both; }
+  .msg.me { justify-self: end; background: var(--pine); color: var(--on-pine); border-bottom-right-radius: 4px; }
+  .msg.bot { background: var(--paper); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .msg.bot .looked { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .msg.bot .looked span { font: .72rem ui-monospace, 'Cascadia Code', monospace; color: var(--ink-faint); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+  .dots span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); margin-right: 3px; animation: dot 1s infinite; }
+  .dots span:nth-child(2) { animation-delay: .15s; } .dots span:nth-child(3) { animation-delay: .3s; }
+  @keyframes dot { 50% { transform: translateY(-3px); opacity: .4; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  .asks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .asks button { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 5px 12px; font-size: .84rem; cursor: pointer; text-align: left; }
+  .asks button:hover:not(:disabled) { border-color: var(--pine); }
+  .asks button:disabled { opacity: .45; cursor: default; }
 
   /* Wrapped */
-  .wrapped-cards { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
-  .wcard { aspect-ratio: 4/5; border-radius: 18px; padding: 20px; background: #14201b; color: #f1f3ec; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  .wrapped-cards { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; perspective: 900px; }
+  .wcard { aspect-ratio: 4/5; border-radius: 18px; padding: 20px; background: #14201b; color: #f1f3ec; position: relative; overflow: hidden; display: flex; flex-direction: column; transition: transform .2s ease-out; transform-style: preserve-3d; }
   .wcard::before { content: ''; position: absolute; width: 190px; height: 190px; border-radius: 50%; top: -70px; right: -70px; background: var(--accent); opacity: .2; }
   .wcard .stripe { width: 28px; height: 5px; border-radius: 3px; background: var(--accent); }
   .wcard .e { color: #a9b5ad; font-size: 0.8rem; margin-top: 12px; }
-  .wcard .b { font-family: var(--display); font-weight: 800; font-size: clamp(1.4rem, 2.6vw, 2.1rem); line-height: 1; letter-spacing: -0.03em; margin-top: 10px; }
+  .wcard .b { font-family: var(--display); font-weight: 800; font-size: clamp(1.3rem, 2.6vw, 2.1rem); line-height: 1; letter-spacing: -0.03em; margin-top: 10px; }
   .wcard .s { color: #a9b5ad; font-size: 0.82rem; margin-top: 8px; }
   .wcard .f { margin-top: auto; display: flex; justify-content: space-between; font-size: 0.75rem; color: #5f6d65; }
   .wcard .f b { color: #f1f3ec; font-family: var(--display); }
+  @media (max-width: 420px) { .wcard { padding: 14px; } }
   .toggle { display: inline-flex; align-items: center; gap: 10px; margin-top: 22px; font-weight: 600; cursor: pointer; user-select: none; }
   .toggle input { appearance: none; width: 42px; height: 24px; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
   .toggle input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); transition: transform .2s; }
   .toggle input:checked { background: var(--pine); }
   .toggle input:checked::after { transform: translateX(18px); }
-  .toggle input:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
 
   /* Pet */
-  .moods { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px; }
-  .mood { text-align: center; font-size: 0.82rem; color: var(--ink-soft); }
-  .mood svg { width: 100%; max-width: 92px; height: auto; }
-  .nudges { margin-top: 20px; display: grid; gap: 8px; }
-  .nudge { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 0.9rem; }
+  .moods { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; }
+  .mood { text-align: center; font-size: 0.82rem; color: var(--ink-soft); background: none; border: 1px solid transparent; border-radius: 12px; padding: 6px 2px; cursor: pointer; transition: border-color .2s, background .2s; }
+  .mood:hover { background: var(--paper); }
+  .mood[aria-pressed="true"] { border-color: var(--pine); background: var(--paper); color: var(--ink); font-weight: 600; }
+  .mood svg { width: 100%; max-width: 84px; height: auto; display: block; margin: 0 auto; }
+  .mood-line { margin-top: 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: .92rem; min-height: 3.2em; }
+  .nudges { margin-top: 10px; display: grid; gap: 8px; }
+  .nudge { border: 1px dashed var(--line); border-radius: 10px; padding: 8px 12px; font-size: 0.86rem; color: var(--ink-soft); }
+
+  /* Safe to spend */
+  .sts { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 18px; }
+  .sts .big { font: 800 2.4rem/1 var(--display); letter-spacing: -0.03em; margin-top: 4px; transition: color .2s; }
+  .sts .big.low { color: var(--brick); }
+  .sts input[type=range] { width: 100%; margin-top: 14px; accent-color: var(--pine); }
+  .sts .what { display: flex; justify-content: space-between; font-size: .86rem; color: var(--ink-soft); margin-top: 4px; }
 
   /* Steps, start, faq */
   .section-head { padding-top: 110px; max-width: 640px; }
   .section-head p { margin-top: 16px; color: var(--ink-soft); font-size: 1.08rem; }
-  .steps { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 28px; margin-top: 40px; counter-reset: s; }
+  .steps { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 28px; margin-top: 40px; counter-reset: s; padding: 0; }
   .steps li { list-style: none; border-top: 2px solid var(--ink); padding-top: 16px; }
   .steps li::before { counter-increment: s; content: '0' counter(s); font-family: var(--display); font-weight: 700; color: var(--pine); display: block; margin-bottom: 6px; }
   .steps h3 { font-size: 1.3rem; }
@@ -166,24 +290,33 @@
   .ai { display: grid; gap: 12px; margin-top: 14px; }
   .ai div { display: flex; gap: 12px; }
   .ai b { min-width: 76px; }
+  .note { margin-top: 28px; border: 1px solid color-mix(in srgb, var(--ochre) 50%, transparent); background: var(--ochre-soft); border-radius: 12px; padding: 14px 18px; font-size: .95rem; }
   details { border-top: 1px solid var(--line); padding: 18px 0; }
   details:last-child { border-bottom: 1px solid var(--line); }
   summary { cursor: pointer; font-family: var(--display); font-weight: 650; font-size: 1.15rem; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
-  summary::after { content: '+'; color: var(--pine); font-size: 1.4rem; line-height: 1; }
-  details[open] summary::after { content: '−'; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; color: var(--pine); font-size: 1.4rem; line-height: 1; transition: transform .2s; }
+  details[open] summary::after { transform: rotate(45deg); }
   details p { margin-top: 10px; color: var(--ink-soft); max-width: 70ch; }
   .final { margin: 120px 0 0; background: var(--pine); color: var(--on-pine); border-radius: 22px; padding: 56px 40px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px; }
   .final h2 { font-size: clamp(2rem, 4vw, 3rem); line-height: 1; }
   .final .btn { background: var(--on-pine); color: var(--pine-strong); }
+  @media (max-width: 560px) { .final { padding: 36px 22px; } }
   footer { padding: 40px 0 56px; font-size: 0.88rem; color: var(--ink-faint); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 
-  /* Sprig animation */
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
   .bounce { animation: bounce 1.6s ease-in-out infinite; }
   @keyframes bounce { 50% { transform: translateY(-2px); } }
-  @media (prefers-reduced-motion: reduce) { .ribbon span, .bounce, .qa .input .caret { animation: none; } .qa .card { transition: none; } html { scroll-behavior: auto; } }
+  @media (prefers-reduced-motion: reduce) {
+    .ribbon span, .bounce, .qa .input .caret, .hint::before, .msg, .dots span, .lvl .badge.pop { animation: none; }
+    .qa .card, .bar span, .xp span, .sub, .wcard { transition: none; }
+    .js .reveal { opacity: 1; transform: none; transition: none; }
+    html { scroll-behavior: auto; }
+  }
 </style>
 </head>
 <body>
+<canvas id="confetti" aria-hidden="true"></canvas>
 <div class="wrap">
   <nav class="top" aria-label="Main">
     <a class="brand" href="#">
@@ -192,8 +325,13 @@
     </a>
     <div class="links">
       <a href="#features">Features</a>
+      <a href="#bills">Bills</a>
+      <a href="#quests">Quests</a>
       <a href="#privacy">Privacy</a>
-      <a href="#start">Get started</a>
+      <button class="theme-btn" id="theme" type="button" aria-label="Switch light or dark theme">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>
+      </button>
       <a class="btn btn-primary" href="#start" style="height:40px">Get Spence</a>
     </div>
   </nav>
@@ -201,31 +339,31 @@
   <header class="hero">
     <div>
       <h1>Know where the <em>month</em> went.</h1>
-      <p class="lede">Spence reads your bank statements, sorts every transaction into categories and shows you the month at a glance. It runs on your own computer, so your money stays your business.</p>
+      <p class="lede">Spence reads your bank statements, sorts every transaction, keeps an eye on your bills and shows you the month at a glance. It runs on your own computer, so your money stays your business.</p>
       <div class="ctas">
         <a class="btn btn-primary" href="#start">Get started, it's free</a>
-        <a class="btn btn-ghost" href="#features">See what it does</a>
+        <a class="btn btn-ghost" href="#try">Try quick add <kbd>N</kbd></a>
       </div>
       <p class="fine">No sign-up. No bank login. No ads. Works with a local AI or your own Gemini or OpenAI key.</p>
     </div>
 
-    <div class="mock" aria-label="A preview of the Spence dashboard and quick add">
+    <div class="mock" id="mock" aria-label="A preview of the Spence dashboard and quick add">
       <div class="row">
         <div class="month">November</div>
         <div>
-          <div class="total num">₹42,180</div>
-          <div class="delta">↓ 12% vs October</div>
+          <div class="total num" id="ribbon-total">₹42,180</div>
+          <div class="delta" id="ribbon-sub">↓ 12% vs October</div>
         </div>
       </div>
-      <div class="ribbon" role="img" aria-label="Spending split: Groceries 28%, Dining 19%, Rent and bills 24%, Transport 11%, Shopping 18%">
-        <span style="flex:28;background:#3f8f5f"></span><span style="flex:24;background:#3b6fd9;animation-delay:.05s"></span><span style="flex:19;background:#d9663b;animation-delay:.1s"></span><span style="flex:18;background:#a3589e;animation-delay:.15s"></span><span style="flex:11;background:#b5832a;animation-delay:.2s"></span>
+      <div class="ribbon" id="ribbon" role="img" aria-label="Spending split: Groceries 28%, Bills 24%, Dining 19%, Shopping 18%, Transport 11%">
+        <span style="--f:28;flex:28;background:#3f8f5f" data-name="Groceries" data-amt="₹11,810"></span><span style="--f:24;flex:24;background:#3b6fd9;animation-delay:.05s" data-name="Bills" data-amt="₹10,123"></span><span style="--f:19;flex:19;background:#d9663b;animation-delay:.1s" data-name="Dining" data-amt="₹8,014"></span><span style="--f:18;flex:18;background:#a3589e;animation-delay:.15s" data-name="Shopping" data-amt="₹7,592"></span><span style="--f:11;flex:11;background:#b5832a;animation-delay:.2s" data-name="Transport" data-amt="₹4,641"></span>
       </div>
       <div class="legend"><span><i style="background:#3f8f5f"></i>Groceries<b>28%</b></span><span><i style="background:#3b6fd9"></i>Bills<b>24%</b></span><span><i style="background:#d9663b"></i>Dining<b>19%</b></span><span><i style="background:#a3589e"></i>Shopping<b>18%</b></span><span><i style="background:#b5832a"></i>Transport<b>11%</b></span></div>
 
       <div class="qa">
-        <div class="input" id="qa-input" aria-live="off"><span id="qa-text">chai 40 upi, uber 250 yesterday, got 80k salary</span><span class="caret"></span></div>
+        <div class="input" aria-live="off"><span id="qa-text">chai 40 upi, uber 250 yesterday, got 80k salary</span><span class="caret"></span></div>
         <div class="cards" id="qa-cards">
-          <div class="card show"><strong class="num">₹40</strong> Chai <span class="chip cat" style="background:#d9663b">Dining</span><span class="chip">Today</span><span class="chip">HDFC ··4521</span></div>
+          <div class="card show"><strong class="num">₹40</strong> Chai <span class="chip cat" style="background:#d9663b">Dining</span><span class="chip">Today</span><span class="chip">UPI</span></div>
           <div class="card show"><strong class="num">₹250</strong> Uber <span class="chip cat" style="background:#b5832a">Transport</span><span class="chip">Yesterday</span></div>
           <div class="card show"><strong class="num">₹80,000</strong> Salary <span class="chip cat" style="background:#2a9d6f">Income</span><span class="chip">Today</span></div>
         </div>
@@ -251,7 +389,7 @@
 </div>
 
 <main class="wrap" id="features">
-  <section class="feature">
+  <section class="feature reveal">
     <div class="copy">
       <p class="eyebrow">Import</p>
       <h2>Drop a statement. Get a sorted month.</h2>
@@ -274,31 +412,70 @@
     </div>
   </section>
 
-  <section class="feature flip">
+  <section class="feature flip reveal" id="try">
     <div class="copy">
       <p class="eyebrow">Quick add</p>
       <h2>Type it the way you'd text it.</h2>
-      <p>Press <b>N</b> anywhere and write <i>chai 40 upi, uber 250 yesterday</i>. Spence turns each entry into a card with the amount, place, category, date and account filled in. Fix anything with a click, press Enter, done.</p>
+      <p>Press <kbd>N</kbd> anywhere and write <i>chai 40 upi, uber 250 yesterday</i>. Spence turns each entry into a card with the amount, place, category, date and account filled in. Fix anything with a click, press Enter, done.</p>
       <ul class="ticks">
         <li>Understands 1.2k, ₹499, 2.5L, "yesterday", "last sat", "12 nov"</li>
-        <li>Knows "got" is money in and "refund" is money back</li>
+        <li>Knows "got" is money in, "refund" is money back, and "monthly" is a bill</li>
         <li>Works offline; the AI only helps with categories it can't work out</li>
       </ul>
     </div>
-    <div class="panel" aria-label="Quick add example">
-      <p class="soft" style="font-size:.85rem;margin-bottom:10px">Quick add</p>
-      <div class="qa" style="margin-top:0">
-        <div class="input">dentist 900 cash, amazon refund 499 amex</div>
-        <div class="cards">
-          <div class="card show"><strong class="num">₹900</strong> Dentist <span class="chip cat" style="background:#d94848">Health</span><span class="chip">Today</span><span class="chip">Cash</span></div>
-          <div class="card show"><strong class="num">₹499</strong> Amazon <span class="chip">Refund</span><span class="chip cat" style="background:#a3589e">Shopping</span><span class="chip">Amex ··1009</span></div>
-        </div>
+    <div class="panel">
+      <p class="hint">Try it here. Press <kbd>N</kbd> or click the box.</p>
+      <label class="try">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>
+        <input id="try-input" autocomplete="off" spellcheck="false" maxlength="200" aria-label="Type an expense, like coffee 120 yesterday" placeholder="coffee 120 yesterday" />
+      </label>
+      <div class="examples" id="examples">
+        <button type="button">dentist 900 cash</button>
+        <button type="button">amazon refund 499 card</button>
+        <button type="button">netflix 649 monthly</button>
+        <button type="button">pizza 1.2k last sat, metro 60</button>
       </div>
-      <p class="soft" style="font-size:.85rem;margin-top:12px">Changed a category? Pick <b>Remember next time</b> or <b>Just this once</b>.</p>
+      <div class="qa" style="margin-top:14px;min-height:72px"><div class="cards" id="try-cards" aria-live="polite" style="margin-top:0"><p class="soft" style="font-size:.85rem">Cards show up here as you type.</p></div></div>
     </div>
   </section>
 
-  <section class="feature">
+  <section class="feature reveal" id="bills">
+    <div class="copy">
+      <p class="eyebrow">Bills &amp; subscriptions</p>
+      <h2>Never wonder if rent went out.</h2>
+      <p>Add a bill once, or let Spence spot the charges that repeat. It works out what's paid from your own transactions, reminds you before the next one, and flags a price rise or a charge after you cancelled.</p>
+      <ul class="ticks">
+        <li>Weekly, monthly or yearly, with an end date for EMIs</li>
+        <li>A calendar file so your phone reminds you even when Spence is closed</li>
+        <li>Subscription check: swipe through and see what cutting would save</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <div class="strip" aria-label="This week's bills">
+        <div class="day paid"><span>Mon</span><b>9</b><i></i></div>
+        <div class="day"><span>Tue</span><b>10</b><i></i></div>
+        <div class="day paid"><span>Wed</span><b>11</b><i></i></div>
+        <div class="day today"><span>Thu</span><b>12</b><i></i></div>
+        <div class="day due"><span>Fri</span><b>13</b><i></i></div>
+        <div class="day"><span>Sat</span><b>14</b><i></i></div>
+        <div class="day due"><span>Sun</span><b>15</b><i></i></div>
+      </div>
+      <p class="soft" style="font-size:.86rem;margin-top:10px">Coming up: <b style="color:var(--ink)">Airtel fiber ₹999</b> Fri · <b style="color:var(--ink)">Car EMI ₹8,450</b> Sun</p>
+      <div class="deck-wrap">
+        <p class="hint" style="margin-bottom:0">Subscription check: drag a card, or use the buttons.</p>
+        <div class="deck" id="deck"></div>
+        <div class="deck-actions">
+          <div class="pair">
+            <button class="btn btn-sm btn-cut" id="cut" type="button">Cut it</button>
+            <button class="btn btn-sm btn-keep" id="keep" type="button">Keep</button>
+          </div>
+          <p class="saved" id="saved" aria-live="polite">Back in your pocket: <b class="num">₹0</b> a year</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="feature flip reveal">
     <div class="copy">
       <p class="eyebrow">Savings pots</p>
       <h2>Goals that fill themselves a little.</h2>
@@ -311,10 +488,10 @@
     </div>
     <div class="panel" aria-label="Savings pots example">
       <div class="pot">
-        <div class="head"><h3>Goa trip</h3><span class="num"><b>₹18,600</b> <span class="soft">of ₹30,000</span></span></div>
-        <div class="bar"><span style="width:62%;background:#2f8f9d"></span><i class="pace" style="left:55%"></i></div>
-        <p class="meta">62% · <b style="color:var(--pine)">Ahead of pace</b> · ₹3,800 a month to make it by 1 March</p>
-        <div class="claim"><span><b class="num">₹186</b> round-ups <span class="soft">(31 purchases)</span></span><button type="button">Move in</button></div>
+        <div class="head"><h3>Goa trip</h3><span class="num"><b id="goa-amt">₹18,600</b> <span class="soft">of ₹30,000</span></span></div>
+        <div class="bar"><span id="goa-bar" style="width:62%;background:#2f8f9d"></span><i class="pace" style="left:55%"></i></div>
+        <p class="meta"><span id="goa-pct">62%</span> · <b style="color:var(--pine)">Ahead of pace</b> · ₹3,800 a month to make it by 1 March</p>
+        <div class="claim" id="claim"><span id="claim-text"><b class="num">₹1,240</b> waiting <span class="soft">(round-ups + leftover Dining)</span></span><button type="button" id="move-in">Move in</button></div>
       </div>
       <div class="pot">
         <div class="head"><h3>Emergency fund</h3><span class="num"><b>₹64,000</b> <span class="soft">of ₹1,50,000</span></span></div>
@@ -324,7 +501,56 @@
     </div>
   </section>
 
-  <section class="feature flip">
+  <section class="feature reveal" id="quests">
+    <div class="copy">
+      <p class="eyebrow">Streaks &amp; side quests</p>
+      <h2>Small wins, every week.</h2>
+      <p>Three little quests a week, picked from your own habits: a couple of no-spend days, feeding a pot, tidying up categories. Finish them for XP, keep your streaks going, and level up to dress up Sprig.</p>
+      <ul class="ticks">
+        <li>Check-in, no-spend, light-week and bills-on-time streaks</li>
+        <li>Plain rules over your own data, so XP never disappears</li>
+        <li>Levels from Seedling to Old oak, each with a new outfit</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <p class="hint">Tap a quest to finish it.</p>
+      <div class="lvl">
+        <span class="badge" id="lvl-n">2</span>
+        <div class="info">
+          <p><b id="lvl-title">Sprout</b><span class="num soft" id="lvl-xp">120 / 150 XP</span></p>
+          <div class="xp"><span id="xp-bar" style="width:67%"></span></div>
+        </div>
+      </div>
+      <div class="streaks"><span class="hot">🔥 <b>6</b> days checking in</span><span><b>2</b> no-spend days · best 7</span><span><b>4</b> bills paid on time</span></div>
+      <div class="quests" id="quest-list"></div>
+      <div class="sprig-stage"><span id="quest-sprig"></span><p id="quest-line"><b>Sprig</b><br /><span class="soft">30 XP to the next level. A bow tie is waiting.</span></p></div>
+    </div>
+  </section>
+
+  <section class="feature flip reveal">
+    <div class="copy">
+      <p class="eyebrow">Ask your expenses</p>
+      <h2>Just ask. Get the real number.</h2>
+      <p>"What did I spend on food last month?" The AI answers by looking up your data with read-only tools, and lists exactly what it looked at under each answer. It can't change anything.</p>
+      <ul class="ticks">
+        <li>Totals, transactions, categories, bills and pots</li>
+        <li>Only what the question needs, never your whole history</li>
+        <li>Works with Ollama, Gemini or OpenAI</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <div class="chat" id="chat" aria-live="polite">
+        <div class="msg bot">Hi! Ask me anything about your money. Pick a question below.</div>
+      </div>
+      <div class="asks" id="asks">
+        <button type="button" data-q="0">What did I spend on food in October?</button>
+        <button type="button" data-q="1">Which subscriptions cost me the most?</button>
+        <button type="button" data-q="2">Am I on track for Goa?</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="feature reveal">
     <div class="copy">
       <p class="eyebrow">Monthly Wrapped</p>
       <h2>Your month, as a story worth sharing.</h2>
@@ -340,59 +566,66 @@
     </div>
   </section>
 
-  <section class="feature">
+  <section class="feature flip reveal">
     <div class="copy">
       <p class="eyebrow">Meet Sprig</p>
       <h2>A small friend who never nags.</h2>
       <p>Sprig lives on your dashboard. Its mood follows how the month is going, and once a day, at most, it mentions one thing worth knowing. It points at what you can do and never guilt-trips. Rename it, or hide it in a click.</p>
     </div>
     <div class="panel" aria-label="Sprig's moods and example nudges">
-      <div class="moods" id="moods"></div>
+      <div class="moods" id="moods" role="group" aria-label="Pick a mood"></div>
+      <p class="mood-line" id="mood-line" aria-live="polite"></p>
       <div class="nudges">
         <p class="nudge">Heads-up: Dining has used 84% of its budget, with 12 days to go.</p>
         <p class="nudge">Netflix usually charges ₹649 tomorrow.</p>
-        <p class="nudge">3 no-spend days in a row. Nice rhythm.</p>
       </div>
     </div>
   </section>
 
-  <section class="feature flip">
+  <section class="feature reveal">
     <div class="copy">
       <p class="eyebrow">The dashboard</p>
       <h2>The whole month in one look.</h2>
-      <p>A ribbon of where it went, daily and yearly trends, budgets per category, the subscriptions that keep renewing, your top merchants and the biggest purchases. Ask for a summary and the AI writes it from totals Spence already computed, so the numbers are exact.</p>
+      <p>A ribbon of where it went, daily and yearly trends, budgets per category, the subscriptions that keep renewing, your top merchants and the biggest purchases. And one number that answers "can I afford this?": what's safe to spend after bills still due.</p>
       <ul class="ticks">
         <li>Filter by category, account or type; search; bulk edit; export to CSV</li>
+        <li>AI summaries written from totals Spence computed, so the numbers are exact</li>
         <li>Light and dark themes, keyboard shortcuts, works on a phone screen</li>
       </ul>
     </div>
-    <div class="panel" aria-label="Budgets example">
+    <div class="panel" aria-label="Budgets and safe to spend example">
       <p class="soft" style="font-size:.85rem;margin-bottom:12px">Budgets this month</p>
       <div style="display:grid;gap:16px">
-        <div><div class="head" style="display:flex;justify-content:space-between"><span>Groceries</span><span class="num soft">₹7,900 / ₹10,000</span></div><div class="bar"><span style="width:79%;background:#3f8f5f"></span></div></div>
-        <div><div class="head" style="display:flex;justify-content:space-between"><span>Dining</span><span class="num soft">₹5,040 / ₹6,000</span></div><div class="bar"><span style="width:84%;background:#d9663b"></span></div></div>
-        <div><div class="head" style="display:flex;justify-content:space-between"><span>Transport</span><span class="num soft">₹1,620 / ₹4,000</span></div><div class="bar"><span style="width:40%;background:#b5832a"></span></div></div>
-        <div><div class="head" style="display:flex;justify-content:space-between"><span>Subscriptions</span><span class="num soft">₹1,297 / ₹1,500</span></div><div class="bar"><span style="width:86%;background:#3b6fd9"></span></div></div>
+        <div><div style="display:flex;justify-content:space-between"><span>Groceries</span><span class="num soft">₹7,900 / ₹10,000</span></div><div class="bar"><span style="width:79%;background:#3f8f5f"></span></div></div>
+        <div><div style="display:flex;justify-content:space-between"><span>Dining</span><span class="num soft">₹5,040 / ₹6,000</span></div><div class="bar"><span style="width:84%;background:#d9663b"></span></div></div>
+        <div><div style="display:flex;justify-content:space-between"><span>Transport</span><span class="num soft">₹1,620 / ₹4,000</span></div><div class="bar"><span style="width:40%;background:#b5832a"></span></div></div>
+      </div>
+      <div class="sts">
+        <p class="soft" style="font-size:.85rem">Safe to spend · 15 days left</p>
+        <p class="big num" id="sts-amt">₹9,840</p>
+        <p class="soft num" style="font-size:.86rem" id="sts-day">about ₹656 a day, after ₹2,300 of bills still due</p>
+        <input type="range" id="sts-range" min="0" max="12000" step="100" value="0" aria-label="Try a purchase" />
+        <div class="what"><span>What if I buy something for…</span><b class="num" id="sts-buy">₹0</b></div>
       </div>
     </div>
   </section>
 
-  <div class="section-head">
+  <div class="section-head reveal">
     <p class="eyebrow">How it works</p>
     <h2>Three steps, then it's habit.</h2>
   </div>
-  <ol class="steps">
+  <ol class="steps reveal">
     <li><h3>Bring the month in</h3><p>Drop last month's statement, or quick-add as you go. Takes seconds.</p></li>
     <li><h3>Glance and confirm</h3><p>Spence sorts everything. Fix what's off once and it remembers.</p></li>
-    <li><h3>See it, save it</h3><p>Watch the month on the dashboard, feed your pots, and share your Wrapped.</p></li>
+    <li><h3>See it, save it</h3><p>Watch the month, pay bills on time, feed your pots, and share your Wrapped.</p></li>
   </ol>
 
-  <div class="section-head" id="start">
+  <div class="section-head reveal" id="start">
     <p class="eyebrow">Get started</p>
     <h2>Free, open and yours.</h2>
     <p>Spence is a small app you run on your own computer: a .NET API and a web app you open in your browser.</p>
   </div>
-  <div class="start">
+  <div class="start reveal">
     <div class="panel">
       <h3 style="font-size:1.25rem">Run it</h3>
       <p class="soft" style="margin-top:6px">Needs the .NET 11 SDK and Node 24+.</p>
@@ -415,19 +648,21 @@ npm run dev         # http://localhost:5173</code></pre>
       <p class="soft" style="margin-top:14px;font-size:.9rem">Your key is encrypted on your computer. Summaries only ever send totals, never your transactions.</p>
     </div>
   </div>
+  <p class="note reveal"><b>Not a developer?</b> A one-click installer for Windows is planned: download, double-click, and Spence opens in your browser. Until then, setup needs the steps above.</p>
 
-  <div class="section-head">
+  <div class="section-head reveal">
     <p class="eyebrow">Questions</p>
     <h2>Good to know</h2>
   </div>
-  <div style="margin-top:28px">
-    <details><summary>Does Spence connect to my bank?</summary><p>No. You bring statements in yourself, as PDF, CSV or a photo. Spence never asks for a bank login and can't move money; savings pots track money, they don't hold it.</p></details>
+  <div style="margin-top:28px" class="reveal">
+    <details><summary>Does Spence connect to my bank?</summary><p>No. You bring statements in yourself, as PDF, CSV or a photo. Spence never asks for a bank login and can't move money; savings pots and bills track money, they don't move it.</p></details>
     <details><summary>Where is my data stored?</summary><p>In a single SQLite file in your user folder, with daily backups next to it. You can also copy each backup to a folder like OneDrive. Nothing is sent to us; there is no "us" server.</p></details>
-    <details><summary>What does the AI see?</summary><p>To read a statement, the statement's text goes to the AI you picked. With Ollama that never leaves your computer. Monthly summaries send only computed totals. Quick add sends only merchant names, and only when it can't work out the category itself.</p></details>
+    <details><summary>What does the AI see?</summary><p>To read a statement, the statement's text goes to the AI you picked. With Ollama that never leaves your computer. Monthly summaries send only computed totals. Ask looks up only what your question needs (at most 25 rows at a time). Quick add sends only merchant names, and only when it can't work out the category itself.</p></details>
+    <details><summary>Will it remind me about bills?</summary><p>Yes, three ways: on the dashboard, from Sprig, and as browser notifications while Spence is open. Download the calendar file and your phone reminds you too, even when Spence is closed.</p></details>
     <details><summary>Which banks and currencies work?</summary><p>Any statement that lists transactions, in any currency. Spence handles day-first and month-first dates, Indian number formats like 1,20,000, and credits marked Cr.</p></details>
   </div>
 
-  <div class="final">
+  <div class="final reveal">
     <h2>Let's see where the month went.</h2>
     <a class="btn" href="#start">Get started</a>
   </div>
@@ -439,44 +674,81 @@ npm run dev         # http://localhost:5173</code></pre>
 </main>
 
 <script>
-  // Sprig's five moods, drawn from the same shapes the app uses.
-  (function () {
-    const ink = 'var(--ink)';
-    const line = (d, w = 2.4) => `<path d="${d}" stroke="${ink}" stroke-width="${w}" stroke-linecap="round" fill="none"/>`;
-    const faces = {
-      Cheerful: line('M23 37 q3 -4 6 0') + line('M35 37 q3 -4 6 0') + `<path d="M26 44 q6 6 12 0 Z" fill="${ink}"/>`,
-      Content: `<circle cx="26" cy="38" r="2.4" fill="${ink}"/><circle cx="38" cy="38" r="2.4" fill="${ink}"/>` + line('M28 44.5 q4 3 8 0'),
-      Watchful: line('M22.5 32.5 l5 1.2', 2) + line('M41.5 32.5 l-5 1.2', 2) + `<circle cx="26" cy="38" r="2.4" fill="${ink}"/><circle cx="38" cy="38" r="2.4" fill="${ink}"/><circle cx="32" cy="46" r="2" stroke="${ink}" stroke-width="2" fill="none"/>`,
-      Proud: line('M23 37 q3 -4 6 0') + line('M35 37 q3 -4 6 0') + `<path d="M26 44 q6 6 12 0 Z" fill="${ink}"/>`,
-      Sleepy: line('M23 38 q3 2 6 0') + line('M35 38 q3 2 6 0') + line('M30 46 q2 1.4 4 0'),
-    };
-    const angle = { Cheerful: -8, Proud: -14, Content: 0, Watchful: 14, Sleepy: 38 };
-    const extra = {
-      Proud: '<g fill="var(--ochre)"><path d="M10 18 l1.6 3.4 3.4 1.6 -3.4 1.6 -1.6 3.4 -1.6 -3.4 -3.4 -1.6 3.4 -1.6Z"/><path d="M54 26 l1.1 2.4 2.4 1.1 -2.4 1.1 -1.1 2.4 -1.1 -2.4 -2.4 -1.1 2.4 -1.1Z"/></g>',
-      Sleepy: '<text x="50" y="22" font-size="10" font-weight="700" fill="var(--ink-faint)">z</text>',
-    };
-    document.getElementById('moods').innerHTML = Object.keys(faces).map((m) => `
-      <div class="mood"><svg viewBox="0 0 64 64" role="img" aria-label="Sprig, ${m.toLowerCase()}">
-        <g transform="rotate(${angle[m]} 32 20)"><path d="M32 21 C32 16 32 13 32 10" stroke="var(--pine)" stroke-width="2.6" stroke-linecap="round" fill="none"/><path d="M32 12 C26 4 18 7 18 11 C24 14 29 14 32 12Z" fill="var(--pine)"/><path d="M32 12 C37 3 46 5 46 9 C41 13 35 14 32 12Z" fill="var(--pine-strong)"/></g>
-        <ellipse cx="32" cy="40" rx="20" ry="18" fill="var(--pine-soft)" stroke="var(--pine)" stroke-width="2.4"/>
-        <ellipse cx="20.5" cy="44" rx="3.4" ry="2.2" fill="var(--ochre)" opacity="${m === 'Sleepy' ? .35 : .7}"/><ellipse cx="43.5" cy="44" rx="3.4" ry="2.2" fill="var(--ochre)" opacity="${m === 'Sleepy' ? .35 : .7}"/>
-        ${faces[m]}${extra[m] ?? ''}</svg>${m}</div>`).join('');
-  })();
+(function () {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const inr = (n) => '₹' + Math.round(n).toLocaleString('en-IN');
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
-  // Wrapped: the "Hide amounts" switch swaps money for counts, like the app does.
-  document.getElementById('hide').addEventListener('change', (e) => {
-    document.querySelectorAll('[data-amount]').forEach((el) => {
-      el.textContent = e.target.checked ? el.dataset.hidden : el.dataset.amount;
+  // ---------- Theme ----------
+  $('#theme').addEventListener('click', () => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark';
+    try { localStorage.setItem('spence-theme', root.dataset.theme); } catch {}
+  });
+
+  // ---------- Confetti (same idea as the app: small, no library, skipped with reduced motion) ----------
+  const canvas = $('#confetti');
+  const ctx = canvas.getContext('2d');
+  let bits = [], raf = 0;
+  function confetti(from, big) {
+    if (reduced) return;
+    const r = from ? from.getBoundingClientRect() : { left: innerWidth / 2, top: innerHeight / 2, width: 0, height: 0 };
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const colors = ['#6fc2a0', '#e3b65a', '#e57c62', '#3b6fd9', '#a3589e'];
+    for (let i = 0; i < (big ? 140 : 60); i++) {
+      const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * (big ? 9 : 6);
+      bits.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 4, s: 4 + Math.random() * 5, c: colors[i % 5], r: Math.random() * 6, life: 70 + Math.random() * 40 });
+    }
+    if (!raf) loop();
+    if (navigator.vibrate) navigator.vibrate(big ? [20, 40, 20] : 15);
+  }
+  function loop() {
+    canvas.width = innerWidth; canvas.height = innerHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    bits = bits.filter((b) => b.life-- > 0);
+    for (const b of bits) {
+      b.vy += 0.25; b.vx *= 0.98; b.x += b.vx; b.y += b.vy; b.r += 0.15;
+      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.r); ctx.globalAlpha = Math.min(1, b.life / 30);
+      ctx.fillStyle = b.c; ctx.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); ctx.restore();
+    }
+    raf = bits.length ? requestAnimationFrame(loop) : 0;
+    if (!raf) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // ---------- Scroll reveal ----------
+  if ('IntersectionObserver' in window && !reduced) {
+    const io = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -10% 0px' });
+    $$('.reveal').forEach((r) => io.observe(r));
+  } else $$('.reveal').forEach((r) => r.classList.add('in'));
+
+  // ---------- Hero: tilt and ribbon ----------
+  const mock = $('#mock');
+  if (!reduced && matchMedia('(hover: hover)').matches) {
+    mock.addEventListener('pointermove', (e) => {
+      const r = mock.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+      mock.style.transform = `perspective(1200px) rotateY(${x * 4}deg) rotateX(${-y * 4}deg)`;
     });
+    mock.addEventListener('pointerleave', () => { mock.style.transform = ''; });
+  }
+  const total = $('#ribbon-total'), sub = $('#ribbon-sub');
+  $$('#ribbon span').forEach((s) => {
+    const show = () => { total.textContent = s.dataset.amt; sub.textContent = s.dataset.name; };
+    const reset = () => { total.textContent = '₹42,180'; sub.textContent = '↓ 12% vs October'; };
+    s.addEventListener('pointerenter', show); s.addEventListener('pointerleave', reset);
+    s.addEventListener('click', () => { const on = !s.classList.contains('on'); $$('#ribbon span').forEach((o) => o.classList.remove('on')); if (on) { s.classList.add('on'); show(); } else reset(); });
   });
 
   // Hero quick add: type the line, then reveal the cards one by one.
   (function () {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const text = document.getElementById('qa-text');
-    const cards = [...document.querySelectorAll('#qa-cards .card')];
+    if (reduced) return;
+    const text = $('#qa-text');
+    const cards = $$('#qa-cards .card');
     const line = text.textContent;
-    const stops = [line.indexOf(',') , line.indexOf(',', line.indexOf(',') + 1), line.length];
+    const stops = [line.indexOf(','), line.indexOf(',', line.indexOf(',') + 1), line.length];
     function run() {
       text.textContent = '';
       cards.forEach((c) => c.classList.remove('show'));
@@ -491,6 +763,334 @@ npm run dev         # http://localhost:5173</code></pre>
     }
     run();
   })();
+
+  // ---------- Try quick add: a tiny version of the app's parser ----------
+  const CATS = [
+    ['Dining', '#d9663b', /chai|coffee|cafe|swiggy|zomato|lunch|dinner|breakfast|pizza|burger|biryani|tea|starbucks|restaurant|snack/],
+    ['Transport', '#b5832a', /uber|ola|rapido|metro|bus|auto|cab|taxi|train|petrol|fuel|parking|toll/],
+    ['Groceries', '#3f8f5f', /bigbasket|grocer|milk|zepto|blinkit|vegetable|fruit|dmart|bread|eggs/],
+    ['Shopping', '#a3589e', /amazon|flipkart|myntra|shoes|shirt|clothes|ikea|nykaa/],
+    ['Subscriptions', '#3b6fd9', /netflix|spotify|prime|hotstar|youtube|icloud|gym|cult/],
+    ['Bills', '#3b6fd9', /rent|electricity|wifi|broadband|jio|airtel|water|gas|recharge/],
+    ['Health', '#d94848', /doctor|dentist|pharmacy|medicine|chemist|hospital|clinic/],
+    ['Entertainment', '#c0398b', /movie|cinema|pvr|concert|game|bookmyshow/],
+    ['Income', '#2a9d6f', /salary|bonus|freelance|interest/],
+  ];
+  const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  function parse(entry) {
+    let s = ' ' + entry.toLowerCase().trim() + ' ';
+    const chips = [];
+    let amount = null;
+    s = s.replace(/(?:₹|rs\.?\s*)?(\d+(?:,\d+)*(?:\.\d+)?)\s*(k|l|lakh)?(?=\s)/, (_, n, unit) => {
+      amount = parseFloat(n.replace(/,/g, '')) * (unit === 'k' ? 1e3 : unit ? 1e5 : 1); return ' ';
+    });
+    let type = 'Expense', repeat = null, when = 'Today', account = null;
+    s = s.replace(/\b(got|received|salary)\b/, (m) => { type = 'Income'; return m === 'salary' ? m : ' '; });
+    s = s.replace(/\brefund(ed)?\b/, () => { type = 'Refund'; return ' '; });
+    s = s.replace(/\bcard bill\b/, () => { type = 'Transfer'; return ' card bill '; });
+    s = s.replace(/\b(monthly|weekly|yearly)\b(\s+on\s+\d+(st|nd|rd|th)?)?/, (m, r) => { repeat = cap(r); return ' '; });
+    s = s.replace(/\b(today|yesterday)\b/, (m) => { when = cap(m); return ' '; });
+    s = s.replace(/\b(last\s+)?(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b/, (m, l, d) => { when = cap(d); return ' '; });
+    s = s.replace(/\b(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/, (m, d, mo) => { when = d + ' ' + cap(mo); return ' '; });
+    s = s.replace(/\b(cash|card|upi|hdfc|amex|gpay|paytm)\b/, (m) => { account = m.length <= 4 && m !== 'cash' && m !== 'card' ? m.toUpperCase() : cap(m); return ' '; });
+    const words = s.replace(/\s+/g, ' ').trim();
+    const merchant = words ? words.split(' ').map(cap).join(' ') : '';
+    let cat = null;
+    if (type !== 'Transfer') for (const c of CATS) if (c[2].test(words)) { cat = c; break; }
+    if (type === 'Income' && !cat) cat = CATS[CATS.length - 1];
+    return { amount, merchant, type, cat, when, account, repeat };
+  }
+  function render(value) {
+    const box = $('#try-cards');
+    box.replaceChildren();
+    const entries = value.split(',').map((x) => x.trim()).filter(Boolean);
+    if (!entries.length) { box.append(el('p', 'soft', 'Cards show up here as you type.')); box.firstChild.style.fontSize = '.85rem'; return; }
+    for (const e of entries) {
+      const r = parse(e);
+      const card = el('div', 'card show');
+      const amt = el('strong', 'num', r.amount ? inr(r.amount) : '₹?');
+      if (!r.amount) amt.style.color = 'var(--ink-faint)';
+      card.append(amt, document.createTextNode(' ' + (r.merchant || 'Something') + ' '));
+      if (r.type !== 'Expense') card.append(el('span', 'chip', r.type));
+      if (r.cat && r.type !== 'Transfer') { const c = el('span', 'chip cat', r.cat[0]); c.style.background = r.cat[1]; card.append(c); }
+      else if (r.type !== 'Transfer' && r.merchant) card.append(el('span', 'chip ai', '✨ AI suggests a category'));
+      card.append(el('span', 'chip', r.repeat ? r.repeat + ' bill' : r.when));
+      if (r.account) card.append(el('span', 'chip', r.account));
+      box.append(card);
+    }
+  }
+  const tryInput = $('#try-input');
+  tryInput.addEventListener('input', () => render(tryInput.value));
+  tryInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && tryInput.value.trim()) {
+      e.preventDefault();
+      const n = tryInput.value.split(',').filter((x) => x.trim()).length;
+      confetti(tryInput);
+      tryInput.value = ''; render('');
+      const done = el('p', 'soft', `Added ${n} ${n === 1 ? 'transaction' : 'transactions'}. That's how fast it is in the app.`);
+      done.style.fontSize = '.85rem';
+      $('#try-cards').replaceChildren(done);
+    }
+  });
+  $$('#examples button').forEach((b) => b.addEventListener('click', () => { tryInput.value = b.textContent; render(tryInput.value); tryInput.focus(); }));
+  // N focuses quick add, just like the app.
+  addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'n' || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+    e.preventDefault();
+    $('#try').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+    tryInput.focus({ preventScroll: true });
+  });
+
+  // ---------- Subscription check: swipe keep / cut ----------
+  const SUBS = [['Netflix', 649], ['Cult.fit', 1499], ['Spotify', 119], ['Hotstar', 299], ['iCloud+', 75]];
+  const deck = $('#deck');
+  let subIdx = 0, savedYear = 0;
+  function drawDeck() {
+    deck.replaceChildren();
+    if (subIdx >= SUBS.length) {
+      const end = el('div', 'sub');
+      end.style.cursor = 'default';
+      const h = el('h3', null, savedYear ? 'All checked. Nice trim.' : 'All checked. Keeping them all.');
+      const again = el('button', 'btn btn-sm btn-ghost', 'Start over');
+      again.type = 'button'; again.style.alignSelf = 'flex-start';
+      again.addEventListener('click', () => { subIdx = 0; savedYear = 0; updateSaved(); drawDeck(); });
+      end.append(h, again); deck.append(end);
+      $('#cut').disabled = $('#keep').disabled = true;
+      return;
+    }
+    $('#cut').disabled = $('#keep').disabled = false;
+    for (let i = Math.min(SUBS.length - 1, subIdx + 2); i >= subIdx; i--) {
+      const [name, mo] = SUBS[i];
+      const depth = i - subIdx;
+      const card = el('div', 'sub');
+      card.style.transform = `translateY(${depth * 8}px) scale(${1 - depth * 0.04})`;
+      card.style.zIndex = 10 - depth;
+      const top = el('div');
+      top.append(el('h3', null, name), el('p', 'yr num', `${inr(mo)} a month · ${inr(mo * 12)} a year`));
+      const bottom = el('p', 'yr', depth === 0 ? 'Still using it?' : '');
+      card.append(top, bottom, el('span', 'stamp keep', 'KEEP'), el('span', 'stamp cut', 'CUT'));
+      if (depth === 0) drag(card);
+      deck.append(card);
+    }
+  }
+  function decide(cut) {
+    const card = deck.lastElementChild;
+    if (!card || subIdx >= SUBS.length) return;
+    card.style.transform = `translateX(${cut ? -130 : 130}%) rotate(${cut ? -14 : 14}deg)`;
+    card.style.opacity = '0';
+    if (cut) { savedYear += SUBS[subIdx][1] * 12; updateSaved(); confetti($('#saved')); }
+    subIdx++;
+    setTimeout(drawDeck, reduced ? 0 : 300);
+  }
+  function updateSaved() { $('#saved').innerHTML = `Back in your pocket: <b class="num">${inr(savedYear)}</b> a year`; }
+  function drag(card) {
+    let x0 = null, dx = 0;
+    card.addEventListener('pointerdown', (e) => { x0 = e.clientX; card.setPointerCapture(e.pointerId); card.style.transition = 'none'; });
+    card.addEventListener('pointermove', (e) => {
+      if (x0 === null) return;
+      dx = e.clientX - x0;
+      card.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+      card.querySelector('.stamp.keep').style.opacity = Math.max(0, dx / 90);
+      card.querySelector('.stamp.cut').style.opacity = Math.max(0, -dx / 90);
+    });
+    const end = () => {
+      if (x0 === null) return;
+      x0 = null; card.style.transition = '';
+      if (Math.abs(dx) > 90) decide(dx < 0);
+      else { card.style.transform = ''; $$('.stamp', card).forEach((s) => (s.style.opacity = 0)); }
+      dx = 0;
+    };
+    card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
+  }
+  $('#cut').addEventListener('click', () => decide(true));
+  $('#keep').addEventListener('click', () => decide(false));
+  drawDeck();
+
+  // ---------- Pots: Move in ----------
+  $('#move-in').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    const from = 18600, to = 19840, goal = 30000, t0 = performance.now();
+    $('#goa-bar').style.width = (to / goal * 100) + '%';
+    const step = (t) => {
+      const k = reduced ? 1 : Math.min(1, (t - t0) / 900);
+      const v = from + (to - from) * (1 - Math.pow(1 - k, 3));
+      $('#goa-amt').textContent = inr(v);
+      $('#goa-pct').textContent = Math.floor(v / goal * 100) + '%';
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    btn.disabled = true; btn.textContent = 'Moved ✓';
+    $('#claim-text').innerHTML = '<b class="num">₹1,240</b> moved in. <span class="soft">You crossed 66%.</span>';
+    confetti(btn);
+  });
+
+  // ---------- Sprig ----------
+  function sprig(mood, accessory, label) {
+    const ink = 'var(--ink)';
+    const line = (d, w = 2.4) => `<path d="${d}" stroke="${ink}" stroke-width="${w}" stroke-linecap="round" fill="none"/>`;
+    const happy = line('M23 37 q3 -4 6 0') + line('M35 37 q3 -4 6 0') + `<path d="M26 44 q6 6 12 0 Z" fill="${ink}"/>`;
+    const faces = {
+      Cheerful: happy, Proud: happy,
+      Content: `<circle cx="26" cy="38" r="2.4" fill="${ink}"/><circle cx="38" cy="38" r="2.4" fill="${ink}"/>` + line('M28 44.5 q4 3 8 0'),
+      Watchful: line('M22.5 32.5 l5 1.2', 2) + line('M41.5 32.5 l-5 1.2', 2) + `<circle cx="26" cy="38" r="2.4" fill="${ink}"/><circle cx="38" cy="38" r="2.4" fill="${ink}"/><circle cx="32" cy="46" r="2" stroke="${ink}" stroke-width="2" fill="none"/>`,
+      Sleepy: line('M23 38 q3 2 6 0') + line('M35 38 q3 2 6 0') + line('M30 46 q2 1.4 4 0'),
+    };
+    const angle = { Cheerful: -8, Proud: -14, Content: 0, Watchful: 14, Sleepy: 38 }[mood];
+    const extra = {
+      Proud: '<g fill="var(--ochre)"><path d="M10 18 l1.6 3.4 3.4 1.6 -3.4 1.6 -1.6 3.4 -1.6 -3.4 -3.4 -1.6 3.4 -1.6Z"/><path d="M54 26 l1.1 2.4 2.4 1.1 -2.4 1.1 -1.1 2.4 -1.1 -2.4 -2.4 -1.1 2.4 -1.1Z"/></g>',
+      Sleepy: '<text x="50" y="22" font-size="10" font-weight="700" fill="var(--ink-faint)">z</text>',
+    }[mood] ?? '';
+    const flower = accessory === 'flower' ? '<g transform="translate(46 7)">' + [0, 72, 144, 216, 288].map((a) => `<circle cx="${(Math.cos(a * Math.PI / 180) * 2.6).toFixed(2)}" cy="${(Math.sin(a * Math.PI / 180) * 2.6).toFixed(2)}" r="2.2" fill="#f2a7c3"/>`).join('') + '<circle r="1.7" fill="var(--ochre)"/></g>' : '';
+    const bowtie = accessory === 'bowtie' ? '<path d="M32 54 l-6.5 -3.8 v7.6Z M32 54 l6.5 -3.8 v7.6Z" fill="var(--brick)"/><circle cx="32" cy="54" r="1.8" fill="var(--brick)" stroke="var(--paper)" stroke-width="0.8"/>' : '';
+    const dim = mood === 'Sleepy' ? .35 : .7;
+    return `<svg viewBox="0 0 64 64" role="img" aria-label="${label || 'Sprig, ' + mood.toLowerCase()}"><g class="${mood === 'Cheerful' || mood === 'Proud' ? 'bounce' : ''}">
+      <g transform="rotate(${angle} 32 20)"><path d="M32 21 C32 16 32 13 32 10" stroke="var(--pine)" stroke-width="2.6" stroke-linecap="round" fill="none"/><path d="M32 12 C26 4 18 7 18 11 C24 14 29 14 32 12Z" fill="var(--pine)"/><path d="M32 12 C37 3 46 5 46 9 C41 13 35 14 32 12Z" fill="var(--pine-strong)"/>${flower}</g>
+      <ellipse cx="32" cy="40" rx="20" ry="18" fill="var(--pine-soft)" stroke="var(--pine)" stroke-width="2.4"/>
+      <ellipse cx="20.5" cy="44" rx="3.4" ry="2.2" fill="var(--ochre)" opacity="${dim}"/><ellipse cx="43.5" cy="44" rx="3.4" ry="2.2" fill="var(--ochre)" opacity="${dim}"/>
+      ${faces[mood]}${bowtie}</g>${extra}</svg>`;
+  }
+
+  // Moods: pick one to hear what Sprig would say.
+  const MOOD_LINES = {
+    Cheerful: 'Spending is well under your usual pace this month. Lovely.',
+    Content: "Right on your usual pace. Nothing to worry about.",
+    Watchful: "A little ahead of your usual pace. Dining is the one to watch.",
+    Proud: 'The Goa trip pot is full! Time to book.',
+    Sleepy: "Nothing logged in a while. Drop in a statement to wake me up?",
+  };
+  const moods = $('#moods');
+  Object.keys(MOOD_LINES).forEach((m, i) => {
+    const b = el('button', 'mood');
+    b.type = 'button';
+    b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+    b.innerHTML = sprig(m) + m;
+    b.addEventListener('click', () => {
+      $$('.mood', moods).forEach((o) => o.setAttribute('aria-pressed', 'false'));
+      b.setAttribute('aria-pressed', 'true');
+      $('#mood-line').innerHTML = `<b>Sprig</b> · <span class="soft">${MOOD_LINES[m]}</span>`;
+      if (m === 'Proud') confetti(b);
+    });
+    moods.append(b);
+  });
+  $('#mood-line').innerHTML = `<b>Sprig</b> · <span class="soft">${MOOD_LINES.Cheerful}</span>`;
+
+  // ---------- Quests: finish them, level up, Sprig gets a bow tie ----------
+  const LEVELS = [[0, 'Seedling'], [60, 'Sprout'], [150, 'Budding'], [280, 'Leafy'], [450, 'Blooming']];
+  const QUESTS = [
+    ['Two no-spend days', 'Two days this week with no spending at all.', 40],
+    ['Feed a pot', 'Move any amount into a savings pot this week.', 30],
+    ['Subscription check', 'Swipe through your subscriptions: keep or cut each one.', 25],
+  ];
+  let xp = 120;
+  const levelOf = (v) => { let i = 0; while (i + 1 < LEVELS.length && v >= LEVELS[i + 1][0]) i++; return i; };
+  function drawLevel() {
+    const i = levelOf(xp), start = LEVELS[i][0], next = LEVELS[i + 1] ? LEVELS[i + 1][0] : start + 400;
+    $('#lvl-n').textContent = i + 1;
+    $('#lvl-title').textContent = LEVELS[i][1];
+    $('#lvl-xp').textContent = `${xp} / ${next} XP`;
+    $('#xp-bar').style.width = ((xp - start) / (next - start) * 100) + '%';
+    $('#quest-sprig').innerHTML = sprig(i >= 2 ? 'Proud' : 'Cheerful', i >= 2 ? 'bowtie' : 'flower', i >= 2 ? 'Sprig wearing a bow tie' : 'Sprig wearing a flower');
+  }
+  const list = $('#quest-list');
+  QUESTS.forEach(([title, detail, gain]) => {
+    const b = el('button', 'quest');
+    b.type = 'button';
+    b.innerHTML = `<span class="box"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.2 2.2L9.5 3.5"/></svg></span><b></b><span class="x num">+${gain} XP</span><small></small>`;
+    b.querySelector('b').textContent = title;
+    b.querySelector('small').textContent = detail;
+    b.addEventListener('click', () => {
+      if (b.classList.contains('done')) return;
+      b.classList.add('done'); b.setAttribute('aria-disabled', 'true');
+      const before = levelOf(xp);
+      xp += gain;
+      drawLevel();
+      if (levelOf(xp) > before) {
+        const badge = $('#lvl-n');
+        badge.classList.remove('pop'); void badge.offsetWidth; badge.classList.add('pop');
+        $('#quest-line').innerHTML = `<b>Level ${levelOf(xp) + 1}: ${LEVELS[levelOf(xp)][1]}!</b><br /><span class="soft">Sprig unlocked a bow tie and put it on right away.</span>`;
+        confetti(badge, true);
+      } else {
+        const left = LEVELS[levelOf(xp) + 1][0] - xp;
+        $('#quest-line').innerHTML = `<b>Quest done. +${gain} XP</b><br /><span class="soft">${left} XP to the next level.</span>`;
+        confetti(b);
+      }
+      if ($$('.quest.done', list).length === QUESTS.length) {
+        const again = el('button', 'btn btn-sm btn-ghost', 'Play again');
+        again.type = 'button'; again.style.marginTop = '10px';
+        again.addEventListener('click', () => { xp = 120; $$('.quest', list).forEach((q) => { q.classList.remove('done'); q.removeAttribute('aria-disabled'); }); again.remove(); drawLevel(); $('#quest-line').innerHTML = '<b>Sprig</b><br /><span class="soft">30 XP to the next level. A bow tie is waiting.</span>'; });
+        list.append(again);
+      }
+    });
+    list.append(b);
+  });
+  drawLevel();
+
+  // ---------- Ask ----------
+  const ANSWERS = [
+    { looked: ['spending_summary(Dining, Oct)', 'spending_summary(Groceries, Oct)'], text: 'In October you spent ₹14,230 on food: ₹8,014 eating out and ₹6,216 on groceries. Eating out was 9% higher than September, mostly Swiggy (11 orders).' },
+    { looked: ['bills_overview()'], text: 'Your priciest subscriptions are Cult.fit (₹1,499 a month), Netflix (₹649) and Hotstar (₹299). Together that is ₹29,364 a year. Cult.fit last matched a visit-free month, worth a swipe in Subscription check.' },
+    { looked: ['savings_pots()'], text: 'Yes. The Goa trip pot has ₹18,600 of ₹30,000, ahead of pace. Keep ₹3,800 a month going in and you reach it before 1 March. ₹1,240 is ready to move in now.' },
+  ];
+  const chat = $('#chat');
+  let busy = false;
+  function typeInto(node, text, done) {
+    if (reduced) { node.textContent = text; done(); return; }
+    let i = 0;
+    const tick = () => { node.textContent = text.slice(0, i += 3); if (i < text.length) setTimeout(tick, 18); else done(); };
+    tick();
+  }
+  $$('#asks button').forEach((b) => b.addEventListener('click', () => {
+    if (busy) return;
+    busy = true;
+    $$('#asks button').forEach((o) => (o.disabled = true));
+    const a = ANSWERS[+b.dataset.q];
+    chat.append(el('div', 'msg me', b.textContent));
+    const bot = el('div', 'msg bot');
+    bot.innerHTML = '<span class="dots"><span></span><span></span><span></span></span>';
+    chat.append(bot);
+    setTimeout(() => {
+      bot.replaceChildren();
+      const p = el('p');
+      bot.append(p);
+      typeInto(p, a.text, () => {
+        const looked = el('div', 'looked');
+        a.looked.forEach((l) => looked.append(el('span', null, '🔎 ' + l)));
+        bot.append(looked);
+        b.remove();
+        busy = false;
+        $$('#asks button').forEach((o) => (o.disabled = false));
+        while (chat.children.length > 5) chat.firstElementChild.remove();
+      });
+    }, reduced ? 0 : 900);
+  }));
+
+  // ---------- Wrapped ----------
+  $('#hide').addEventListener('change', (e) => {
+    $$('[data-amount]').forEach((n) => { n.textContent = e.target.checked ? n.dataset.hidden : n.dataset.amount; });
+  });
+  if (!reduced && matchMedia('(hover: hover)').matches) {
+    $$('.wcard').forEach((c) => {
+      c.addEventListener('pointermove', (e) => {
+        const r = c.getBoundingClientRect();
+        c.style.transform = `rotateY(${((e.clientX - r.left) / r.width - 0.5) * 14}deg) rotateX(${-((e.clientY - r.top) / r.height - 0.5) * 14}deg) scale(1.03)`;
+      });
+      c.addEventListener('pointerleave', () => { c.style.transform = ''; });
+    });
+  }
+
+  // ---------- Safe to spend ----------
+  const SAFE = 9840, DAYS_LEFT = 15;
+  $('#sts-range').addEventListener('input', (e) => {
+    const buy = +e.target.value, left = SAFE - buy;
+    $('#sts-buy').textContent = inr(buy);
+    $('#sts-amt').textContent = left < 0 ? '−' + inr(-left) : inr(left);
+    $('#sts-amt').classList.toggle('low', left < SAFE * 0.2);
+    $('#sts-day').textContent = left > 0 ? `about ${inr(left / DAYS_LEFT)} a day, after ₹2,300 of bills still due` : 'That would dip into money set aside for bills.';
+  });
+})();
 </script>
 </body>
 </html>

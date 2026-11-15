@@ -20,7 +20,14 @@ export function Dialog({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (open && !el.open) el.showModal();
+    if (open && !el.open) {
+      el.showModal();
+      // React's autoFocus runs while the dialog is still closed, so the browser then focuses the close button.
+      // Put the cursor in the first text field instead, so you can type straight away.
+      el.querySelector<HTMLElement>(
+        '[data-autofocus], input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=date]):not([type=file]):not([disabled]), textarea:not([disabled])',
+      )?.focus();
+    }
     if (!open && el.open) el.close();
   }, [open]);
 
