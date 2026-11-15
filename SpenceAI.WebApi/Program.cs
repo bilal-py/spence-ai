@@ -1,103 +1,61 @@
-using System.IO;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
-using SpenceAI.Application.Common.Interfaces;
-using SpenceAI.Application.Services;
+using SpenceAI.Application;
+using SpenceAI.Application.Categories;
+using SpenceAI.Application.Imports;
+using SpenceAI.Application.Settings;
+using SpenceAI.Infrastructure;
 using SpenceAI.Infrastructure.Data;
-using SpenceAI.Infrastructure.Data.Repositories;
-using SpenceAI.Infrastructure.Services;
 using SpenceAI.WebApi.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
-// Read storage mode from local file (default to Local if file doesn't exist)
-string storageModeFile = Path.Combine(Directory.GetCurrentDirectory(), "storage-mode.txt");
-string storageMode = "Local"; // Default to Local
-if (File.Exists(storageModeFile))
-{
-    storageMode = File.ReadAllText(storageModeFile).Trim();
-}
-
-// Configure DbContext based on storage mode
-if (storageMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
-{
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlite("Data Source=spence.db"));
-}
-else
-{
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-}
-
-builder.Services.AddScoped<IApplicationDbContext>(provider =>
-    provider.GetRequiredService<ApplicationDbContext>());
-
-builder.Services.AddHttpClient();
-
-builder.Services.AddHttpClient<IAiCategorizationService, GeminiCategorizationService>();
-// Register the new provider-agnostic AI engine and factory
-builder.Services.AddScoped<SpenceAI.Infrastructure.Services.GeminiService>();
-// Replace your old OllamaService registration with this:
-builder.Services.AddHttpClient<SpenceAI.Infrastructure.Services.OllamaService>(client =>
-{
-    // Give your local machine up to 5 minutes to complete heavy local AI extraction
-    client.Timeout = TimeSpan.FromMinutes(5);
-});
-
-// Keep this factory mapping right below it as is:
-builder.Services.AddScoped<SpenceAI.Application.Common.Interfaces.IAiEngineService>(provider =>
-    provider.GetRequiredService<SpenceAI.Infrastructure.Services.OllamaService>());
-builder.Services.AddScoped<SpenceAI.Application.Common.Interfaces.IAiEngineService>(provider =>
-    provider.GetRequiredService<SpenceAI.Infrastructure.Services.GeminiService>());
-builder.Services.AddScoped<SpenceAI.Application.Common.Interfaces.IAiEngineFactory, SpenceAI.Infrastructure.Factories.AiEngineFactory>();
-
-builder.Services.AddScoped<IPdfExtractionService, PdfExtractionService>();
-
-builder.Services.AddScoped<IEncryptionService, EncryptionService>();
-
-builder.Services.AddScoped<SettingsService>();
-
-builder.Services.AddScoped<ISyncEngineService, SyncEngineService>();
-
-builder.Services.AddScoped<ExpenseProcessingService>();
-
-builder.Services.AddControllers();
-
-builder.Services.ConfigureHttpJsonOptions(options =>
-{
-    options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-});
-
-builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
-builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
-
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-        policy
-            .WithOrigins(
-                        "http://localhost:5173",
-                        "http://127.0.0.1:5173",
-                        "http://localhost:5174",
-                        "http://127.0.0.1:5174")
-            .AllowAnyHeader()
-            .AllowAnyMethod());
-});
-
+builder.Services.AddSpenceAi(builder.Configuration);
+builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = BackupService.MaxUploadBytes);
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = BackupService.MaxUploadBytes);
+builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+
+var allowedOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:5173"];
+builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
 
+// Known, user-facing errors become 4xx ProblemDetails; anything else is logged and returned as a generic 500.
+app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
+{
+    var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+    var (status, detail) = error switch
+    {
+        AppException ex => (ex.StatusCode, ex.Message),
+        BadHttpRequestException ex => (ex.StatusCode, "The request couldn't be read. Check the values and try again."),
+        _ => (StatusCodes.Status500InternalServerError, "Something went wrong on the server. Check the API logs for details."),
+    };
+
+    context.Response.StatusCode = status;
+    var extensions = error is AppException { Code: { } code } ? new Dictionary<string, object?> { ["code"] = code } : null;
+    await Results.Problem(detail: detail, statusCode: status, extensions: extensions).ExecuteAsync(context);
+}));
+
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    db.Database.Migrate();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var storage = scope.ServiceProvider.GetRequiredService<StorageOptions>();
 
-    if (app.Environment.IsDevelopment())
+    // An update that changes the schema backs up the old data first, so it can be restored if anything goes wrong.
+    if (File.Exists(storage.DatabasePath) && (await db.Database.GetAppliedMigrationsAsync()).Any() && (await db.Database.GetPendingMigrationsAsync()).Any())
     {
-        await DevelopmentDataSeeder.SeedAsync(db);
+        await scope.ServiceProvider.GetRequiredService<BackupService>().CreateAsync(BackupKind.BeforeUpdate, CancellationToken.None);
     }
+
+    await db.Database.MigrateAsync();
+    await CategoryTemplates.SeedAsync(db);
+    await scope.ServiceProvider.GetRequiredService<SettingsService>().GetEntityAsync();
+
+    app.Logger.LogInformation("Data directory: {DataDirectory}", storage.DataDirectory);
 }
 
 if (app.Environment.IsDevelopment())
@@ -106,7 +64,15 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
-app.MapControllers();
-app.MapExpenseEndpoints();
+
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
+app.MapTransactionEndpoints();
+app.MapCategoryEndpoints();
+app.MapAccountEndpoints();
+app.MapQuickAddEndpoints();
+app.MapSavingsEndpoints();
+app.MapBillEndpoints();
+app.MapAppEndpoints();
+app.MapBackupEndpoints();
 
 app.Run();

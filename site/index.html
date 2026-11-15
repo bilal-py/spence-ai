@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spence: know where the month went</title>
+<meta name="description" content="Spence is a private expense tracker that reads your bank statements, sorts every transaction and shows where your money goes. It runs on your own computer." />
+<meta property="og:title" content="Spence: know where the month went" />
+<meta property="og:description" content="Drop in a statement, type 'chai 40 upi', and see the month clearly. Private, local-first, AI-assisted." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #eef0e9; --surface: #f8f9f5; --sunken: #e4e7de; --ink: #18211d; --ink-soft: #5d6862; --ink-faint: #8b948e;
+    --line: #d4d9cf; --pine: #1e5a46; --pine-strong: #164534; --pine-soft: #d6e6dc; --ochre: #c99a2e; --ochre-soft: #f3e6c4;
+    --brick: #b4472e; --brick-soft: #f4dcd3; --on-pine: #f4f7f2;
+    --display: 'Bricolage Grotesque', 'Instrument Sans', system-ui, sans-serif;
+    --sans: 'Instrument Sans', system-ui, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0f1714; --surface: #16201c; --sunken: #0b120f; --ink: #e4eae3; --ink-soft: #a3aea7; --ink-faint: #6f7b74;
+      --line: #2a3631; --pine: #6fc2a0; --pine-strong: #8fd4b6; --pine-soft: #1d3a2f; --ochre: #e3b65a; --ochre-soft: #3a3020;
+      --brick: #e57c62; --brick-soft: #3c2219; --on-pine: #0f1714;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+  h1, h2, h3 { font-family: var(--display); letter-spacing: -0.025em; margin: 0; }
+  p { margin: 0; }
+  .num { font-variant-numeric: tabular-nums; }
+  .eyebrow { color: var(--pine); font-weight: 600; font-size: 0.92rem; margin-bottom: 14px; }
+  .soft { color: var(--ink-soft); }
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 20px; border-radius: 9px; font-weight: 600; text-decoration: none; transition: background .15s, border-color .15s; }
+  .btn-primary { background: var(--pine); color: var(--on-pine); }
+  .btn-primary:hover { background: var(--pine-strong); }
+  .btn-ghost { border: 1px solid var(--line); background: var(--surface); }
+  .btn-ghost:hover { border-color: var(--ink-faint); }
+
+  /* Nav */
+  nav.top { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--display); font-weight: 800; font-size: 1.55rem; letter-spacing: -0.04em; }
+  .brand svg { width: 32px; height: 32px; }
+  nav.top .links { display: flex; gap: 26px; align-items: center; font-size: 0.95rem; }
+  nav.top .links a:not(.btn) { text-decoration: none; color: var(--ink-soft); }
+  nav.top .links a:not(.btn):hover { color: var(--ink); }
+  @media (max-width: 760px) { nav.top .links a:not(.btn) { display: none; } }
+
+  /* Hero */
+  .hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 56px; align-items: center; padding: 48px 0 80px; }
+  .hero h1 { font-size: clamp(3rem, 7vw, 5.6rem); line-height: 0.92; font-weight: 800; letter-spacing: -0.045em; }
+  .hero h1 em { font-style: normal; color: var(--pine); }
+  .hero .lede { margin-top: 26px; font-size: 1.22rem; max-width: 34ch; color: var(--ink-soft); }
+  .hero .ctas { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 12px; }
+  .hero .fine { margin-top: 18px; font-size: 0.88rem; color: var(--ink-faint); }
+  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding-top: 24px; } }
+
+  /* Product mock */
+  .mock { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px; box-shadow: 0 30px 60px -30px rgb(0 0 0 / .25); position: relative; }
+  .mock .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .mock .month { font-family: var(--display); font-weight: 800; font-size: 3.2rem; line-height: .85; letter-spacing: -0.045em; }
+  .mock .total { font-family: var(--display); font-weight: 650; font-size: 1.9rem; letter-spacing: -0.02em; text-align: right; }
+  .mock .delta { font-size: 0.85rem; color: var(--pine); font-weight: 600; text-align: right; }
+  .ribbon { display: flex; gap: 3px; height: 22px; border-radius: 5px; overflow: hidden; margin-top: 22px; }
+  .ribbon span { display: block; height: 100%; transform-origin: left; animation: grow .9s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes grow { from { transform: scaleX(0); } }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 0.82rem; }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+  .legend b { font-weight: 500; color: var(--ink-faint); margin-left: 4px; }
+  .qa { margin-top: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); padding: 14px; }
+  .qa .input { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 0.95rem; min-height: 1.5em; }
+  .qa .input .caret { display: inline-block; width: 2px; height: 1.1em; vertical-align: -3px; background: var(--pine); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .qa .cards { display: grid; gap: 8px; margin-top: 12px; }
+  .qa .card { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-size: 0.82rem; opacity: 0; transform: translateY(6px); transition: opacity .3s, transform .3s; }
+  .qa .card.show { opacity: 1; transform: none; }
+  .qa .card strong { font-family: var(--display); font-size: 1rem; margin-right: 4px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; color: var(--ink-soft); white-space: nowrap; }
+  .chip.cat { border-color: transparent; color: #fff; }
+  .pet-bubble { position: absolute; left: -18px; bottom: -26px; display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px 14px 8px 8px; box-shadow: 0 14px 30px -18px rgb(0 0 0 / .35); font-size: 0.85rem; max-width: 300px; }
+  .pet-bubble svg { width: 44px; height: 44px; flex-shrink: 0; }
+  @media (max-width: 560px) { .pet-bubble { position: static; margin-top: 18px; max-width: none; } .mock .month { font-size: 2.5rem; } }
+
+  /* Promise strip */
+  .promise { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 26px 0; }
+  .promise ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 20px; }
+  .promise li { font-size: 0.95rem; }
+  .promise li b { display: block; font-family: var(--display); font-size: 1.12rem; }
+  @media (max-width: 800px) { .promise ul { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+  /* Feature rows */
+  section.feature { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 64px; align-items: center; padding: 96px 0 0; }
+  section.feature.flip .copy { order: 2; }
+  section.feature h2, .section-head h2 { font-size: clamp(2.1rem, 4.2vw, 3.2rem); line-height: 1; font-weight: 750; }
+  section.feature .copy p { margin-top: 18px; color: var(--ink-soft); font-size: 1.08rem; max-width: 46ch; }
+  section.feature ul.ticks { margin: 20px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  ul.ticks li { padding-left: 26px; position: relative; }
+  ul.ticks li::before { content: ''; position: absolute; left: 2px; top: 0.5em; width: 12px; height: 7px; border-left: 2.4px solid var(--pine); border-bottom: 2.4px solid var(--pine); transform: rotate(-45deg); }
+  @media (max-width: 900px) { section.feature { grid-template-columns: 1fr; gap: 32px; padding-top: 72px; } section.feature.flip .copy { order: 0; } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
+
+  /* Import panel */
+  .file { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: 10px; }
+  .file .doc { width: 36px; height: 44px; border-radius: 5px; background: var(--brick-soft); color: var(--brick); display: grid; place-items: center; font-size: 0.7rem; font-weight: 700; }
+  table.review { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.88rem; }
+  table.review td { padding: 9px 6px; border-top: 1px solid var(--line); }
+  table.review td:last-child { text-align: right; }
+  .tag { display: inline-flex; align-items: center; gap: 6px; }
+  .tag i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .flag { font-size: 0.75rem; padding: 1px 7px; border-radius: 999px; background: var(--ochre-soft); color: var(--ink); margin-left: 6px; }
+
+  /* Pots panel */
+  .pot + .pot { margin-top: 22px; }
+  .pot .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .pot .head h3 { font-size: 1.3rem; }
+  .bar { position: relative; height: 12px; border-radius: 999px; background: var(--sunken); overflow: hidden; margin-top: 10px; }
+  .bar span { position: absolute; inset: 0 auto 0 0; border-radius: 999px; }
+  .bar .pace { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: .55; }
+  .pot .meta { margin-top: 8px; font-size: 0.86rem; color: var(--ink-soft); }
+  .claim { display: inline-flex; align-items: center; gap: 10px; margin-top: 12px; background: var(--ochre-soft); border: 1px solid color-mix(in srgb, var(--ochre) 50%, transparent); border-radius: 8px; padding: 5px 5px 5px 12px; font-size: 0.86rem; }
+  .claim button { font: inherit; font-weight: 600; border: 0; border-radius: 6px; background: var(--pine); color: var(--on-pine); padding: 4px 10px; cursor: pointer; }
+
+  /* Wrapped */
+  .wrapped-cards { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+  .wcard { aspect-ratio: 4/5; border-radius: 18px; padding: 20px; background: #14201b; color: #f1f3ec; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  .wcard::before { content: ''; position: absolute; width: 190px; height: 190px; border-radius: 50%; top: -70px; right: -70px; background: var(--accent); opacity: .2; }
+  .wcard .stripe { width: 28px; height: 5px; border-radius: 3px; background: var(--accent); }
+  .wcard .e { color: #a9b5ad; font-size: 0.8rem; margin-top: 12px; }
+  .wcard .b { font-family: var(--display); font-weight: 800; font-size: clamp(1.4rem, 2.6vw, 2.1rem); line-height: 1; letter-spacing: -0.03em; margin-top: 10px; }
+  .wcard .s { color: #a9b5ad; font-size: 0.82rem; margin-top: 8px; }
+  .wcard .f { margin-top: auto; display: flex; justify-content: space-between; font-size: 0.75rem; color: #5f6d65; }
+  .wcard .f b { color: #f1f3ec; font-family: var(--display); }
+  .toggle { display: inline-flex; align-items: center; gap: 10px; margin-top: 22px; font-weight: 600; cursor: pointer; user-select: none; }
+  .toggle input { appearance: none; width: 42px; height: 24px; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
+  .toggle input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); transition: transform .2s; }
+  .toggle input:checked { background: var(--pine); }
+  .toggle input:checked::after { transform: translateX(18px); }
+  .toggle input:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
+
+  /* Pet */
+  .moods { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px; }
+  .mood { text-align: center; font-size: 0.82rem; color: var(--ink-soft); }
+  .mood svg { width: 100%; max-width: 92px; height: auto; }
+  .nudges { margin-top: 20px; display: grid; gap: 8px; }
+  .nudge { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 0.9rem; }
+
+  /* Steps, start, faq */
+  .section-head { padding-top: 110px; max-width: 640px; }
+  .section-head p { margin-top: 16px; color: var(--ink-soft); font-size: 1.08rem; }
+  .steps { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 28px; margin-top: 40px; counter-reset: s; }
+  .steps li { list-style: none; border-top: 2px solid var(--ink); padding-top: 16px; }
+  .steps li::before { counter-increment: s; content: '0' counter(s); font-family: var(--display); font-weight: 700; color: var(--pine); display: block; margin-bottom: 6px; }
+  .steps h3 { font-size: 1.3rem; }
+  .steps p { margin-top: 8px; color: var(--ink-soft); }
+  @media (max-width: 800px) { .steps { grid-template-columns: 1fr; } }
+  .start { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 28px; margin-top: 36px; }
+  @media (max-width: 860px) { .start { grid-template-columns: 1fr; } }
+  pre { margin: 14px 0 0; background: var(--sunken); border-radius: 10px; padding: 16px; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+  .ai { display: grid; gap: 12px; margin-top: 14px; }
+  .ai div { display: flex; gap: 12px; }
+  .ai b { min-width: 76px; }
+  details { border-top: 1px solid var(--line); padding: 18px 0; }
+  details:last-child { border-bottom: 1px solid var(--line); }
+  summary { cursor: pointer; font-family: var(--display); font-weight: 650; font-size: 1.15rem; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  summary::after { content: '+'; color: var(--pine); font-size: 1.4rem; line-height: 1; }
+  details[open] summary::after { content: '−'; }
+  details p { margin-top: 10px; color: var(--ink-soft); max-width: 70ch; }
+  .final { margin: 120px 0 0; background: var(--pine); color: var(--on-pine); border-radius: 22px; padding: 56px 40px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px; }
+  .final h2 { font-size: clamp(2rem, 4vw, 3rem); line-height: 1; }
+  .final .btn { background: var(--on-pine); color: var(--pine-strong); }
+  footer { padding: 40px 0 56px; font-size: 0.88rem; color: var(--ink-faint); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+  /* Sprig animation */
+  .bounce { animation: bounce 1.6s ease-in-out infinite; }
+  @keyframes bounce { 50% { transform: translateY(-2px); } }
+  @media (prefers-reduced-motion: reduce) { .ribbon span, .bounce, .qa .input .caret { animation: none; } .qa .card { transition: none; } html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="top" aria-label="Main">
+    <a class="brand" href="#">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--pine)"/><rect x="6" y="19" width="7" height="6" rx="1.5" fill="var(--ochre)"/><rect x="14" y="19" width="5" height="6" rx="1.5" fill="var(--paper)"/><rect x="20" y="19" width="6" height="6" rx="1.5" fill="var(--pine-soft)"/><path d="M8 13.5c0-2.5 2.2-4 5-4h11" stroke="var(--paper)" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
+      spence
+    </a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#start">Get started</a>
+      <a class="btn btn-primary" href="#start" style="height:40px">Get Spence</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div>
+      <h1>Know where the <em>month</em> went.</h1>
+      <p class="lede">Spence reads your bank statements, sorts every transaction into categories and shows you the month at a glance. It runs on your own computer, so your money stays your business.</p>
+      <div class="ctas">
+        <a class="btn btn-primary" href="#start">Get started, it's free</a>
+        <a class="btn btn-ghost" href="#features">See what it does</a>
+      </div>
+      <p class="fine">No sign-up. No bank login. No ads. Works with a local AI or your own Gemini or OpenAI key.</p>
+    </div>
+
+    <div class="mock" aria-label="A preview of the Spence dashboard and quick add">
+      <div class="row">
+        <div class="month">November</div>
+        <div>
+          <div class="total num">₹42,180</div>
+          <div class="delta">↓ 12% vs October</div>
+        </div>
+      </div>
+      <div class="ribbon" role="img" aria-label="Spending split: Groceries 28%, Dining 19%, Rent and bills 24%, Transport 11%, Shopping 18%">
+        <span style="flex:28;background:#3f8f5f"></span><span style="flex:24;background:#3b6fd9;animation-delay:.05s"></span><span style="flex:19;background:#d9663b;animation-delay:.1s"></span><span style="flex:18;background:#a3589e;animation-delay:.15s"></span><span style="flex:11;background:#b5832a;animation-delay:.2s"></span>
+      </div>
+      <div class="legend"><span><i style="background:#3f8f5f"></i>Groceries<b>28%</b></span><span><i style="background:#3b6fd9"></i>Bills<b>24%</b></span><span><i style="background:#d9663b"></i>Dining<b>19%</b></span><span><i style="background:#a3589e"></i>Shopping<b>18%</b></span><span><i style="background:#b5832a"></i>Transport<b>11%</b></span></div>
+
+      <div class="qa">
+        <div class="input" id="qa-input" aria-live="off"><span id="qa-text">chai 40 upi, uber 250 yesterday, got 80k salary</span><span class="caret"></span></div>
+        <div class="cards" id="qa-cards">
+          <div class="card show"><strong class="num">₹40</strong> Chai <span class="chip cat" style="background:#d9663b">Dining</span><span class="chip">Today</span><span class="chip">HDFC ··4521</span></div>
+          <div class="card show"><strong class="num">₹250</strong> Uber <span class="chip cat" style="background:#b5832a">Transport</span><span class="chip">Yesterday</span></div>
+          <div class="card show"><strong class="num">₹80,000</strong> Salary <span class="chip cat" style="background:#2a9d6f">Income</span><span class="chip">Today</span></div>
+        </div>
+      </div>
+
+      <div class="pet-bubble">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><g class="bounce"><g transform="rotate(-8 32 20)"><path d="M32 21 C32 16 32 13 32 10" stroke="var(--pine)" stroke-width="2.6" stroke-linecap="round" fill="none"/><path d="M32 12 C26 4 18 7 18 11 C24 14 29 14 32 12Z" fill="var(--pine)"/><path d="M32 12 C37 3 46 5 46 9 C41 13 35 14 32 12Z" fill="var(--pine-strong)"/></g><ellipse cx="32" cy="40" rx="20" ry="18" fill="var(--pine-soft)" stroke="var(--pine)" stroke-width="2.4"/><ellipse cx="20.5" cy="44" rx="3.4" ry="2.2" fill="var(--ochre)" opacity=".7"/><ellipse cx="43.5" cy="44" rx="3.4" ry="2.2" fill="var(--ochre)" opacity=".7"/><path d="M23 37 q3 -4 6 0" stroke="var(--ink)" stroke-width="2.4" stroke-linecap="round" fill="none"/><path d="M35 37 q3 -4 6 0" stroke="var(--ink)" stroke-width="2.4" stroke-linecap="round" fill="none"/><path d="M26 44 q6 6 12 0 Z" fill="var(--ink)"/></g></svg>
+        <span><b>Sprig</b><br /><span class="soft">₹186 in round-ups is ready for your Goa trip.</span></span>
+      </div>
+    </div>
+  </header>
+</div>
+
+<div class="promise" id="privacy">
+  <div class="wrap">
+    <ul>
+      <li><b>Stays on your machine</b><span class="soft">One file on your computer. No account, no servers of ours.</span></li>
+      <li><b>You check, then it saves</b><span class="soft">Every import is reviewed first and can be undone later.</span></li>
+      <li><b>AI that you choose</b><span class="soft">Run it fully offline with Ollama, or bring your own key.</span></li>
+      <li><b>Backed up daily</b><span class="soft">Automatic backups, one-click restore, optional OneDrive copy.</span></li>
+    </ul>
+  </div>
+</div>
+
+<main class="wrap" id="features">
+  <section class="feature">
+    <div class="copy">
+      <p class="eyebrow">Import</p>
+      <h2>Drop a statement. Get a sorted month.</h2>
+      <p>PDF statements (even password-protected ones), CSV exports and receipt photos. Spence pulls out every transaction, picks a category and flags anything that looks off, like a duplicate or an amount that isn't on the page.</p>
+      <ul class="ticks">
+        <li>Change a category once and it's remembered for that merchant</li>
+        <li>Refunds, cashback and card-bill payments are told apart from spending</li>
+        <li>Tag the whole statement with the account or card it came from</li>
+      </ul>
+    </div>
+    <div class="panel" aria-label="Example of an import being reviewed">
+      <div class="file"><span class="doc">PDF</span><span><b>HDFC_Statement_Oct.pdf</b><br /><span class="soft" style="font-size:.85rem">64 transactions found · 2 need a look</span></span></div>
+      <table class="review">
+        <tr><td>Swiggy</td><td><span class="tag"><i style="background:#d9663b"></i>Dining</span></td><td class="num">₹486</td></tr>
+        <tr><td>BigBasket</td><td><span class="tag"><i style="background:#3f8f5f"></i>Groceries</span></td><td class="num">₹2,140</td></tr>
+        <tr><td>Amazon refund</td><td><span class="tag"><i style="background:#a3589e"></i>Shopping</span></td><td class="num" style="color:var(--pine)">+₹899</td></tr>
+        <tr><td>Credit card bill</td><td><span class="tag soft">Transfer</span></td><td class="num">₹18,400</td></tr>
+        <tr><td>Netflix <span class="flag">Possible duplicate</span></td><td><span class="tag"><i style="background:#3b6fd9"></i>Subscriptions</span></td><td class="num">₹649</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="feature flip">
+    <div class="copy">
+      <p class="eyebrow">Quick add</p>
+      <h2>Type it the way you'd text it.</h2>
+      <p>Press <b>N</b> anywhere and write <i>chai 40 upi, uber 250 yesterday</i>. Spence turns each entry into a card with the amount, place, category, date and account filled in. Fix anything with a click, press Enter, done.</p>
+      <ul class="ticks">
+        <li>Understands 1.2k, ₹499, 2.5L, "yesterday", "last sat", "12 nov"</li>
+        <li>Knows "got" is money in and "refund" is money back</li>
+        <li>Works offline; the AI only helps with categories it can't work out</li>
+      </ul>
+    </div>
+    <div class="panel" aria-label="Quick add example">
+      <p class="soft" style="font-size:.85rem;margin-bottom:10px">Quick add</p>
+      <div class="qa" style="margin-top:0">
+        <div class="input">dentist 900 cash, amazon refund 499 amex</div>
+        <div class="cards">
+          <div class="card show"><strong class="num">₹900</strong> Dentist <span class="chip cat" style="background:#d94848">Health</span><span class="chip">Today</span><span class="chip">Cash</span></div>
+          <div class="card show"><strong class="num">₹499</strong> Amazon <span class="chip">Refund</span><span class="chip cat" style="background:#a3589e">Shopping</span><span class="chip">Amex ··1009</span></div>
+        </div>
+      </div>
+      <p class="soft" style="font-size:.85rem;margin-top:12px">Changed a category? Pick <b>Remember next time</b> or <b>Just this once</b>.</p>
+    </div>
+  </section>
+
+  <section class="feature">
+    <div class="copy">
+      <p class="eyebrow">Savings pots</p>
+      <h2>Goals that fill themselves a little.</h2>
+      <p>Name a goal, set a date, and Spence tells you the pace you need, per month and per week. Then it finds money for it: the spare change from rounding up each purchase, what your budgets didn't use, a bonus for every no-spend day, and small challenges.</p>
+      <ul class="ticks">
+        <li>Linked transfers, like a monthly recurring deposit, count on their own</li>
+        <li>Challenges like "skip Dining for two weeks" or "5 no-spend days"</li>
+        <li>Nothing moves without your tap, so the numbers stay honest</li>
+      </ul>
+    </div>
+    <div class="panel" aria-label="Savings pots example">
+      <div class="pot">
+        <div class="head"><h3>Goa trip</h3><span class="num"><b>₹18,600</b> <span class="soft">of ₹30,000</span></span></div>
+        <div class="bar"><span style="width:62%;background:#2f8f9d"></span><i class="pace" style="left:55%"></i></div>
+        <p class="meta">62% · <b style="color:var(--pine)">Ahead of pace</b> · ₹3,800 a month to make it by 1 March</p>
+        <div class="claim"><span><b class="num">₹186</b> round-ups <span class="soft">(31 purchases)</span></span><button type="button">Move in</button></div>
+      </div>
+      <div class="pot">
+        <div class="head"><h3>Emergency fund</h3><span class="num"><b>₹64,000</b> <span class="soft">of ₹1,50,000</span></span></div>
+        <div class="bar"><span style="width:43%;background:#3f8f5f"></span></div>
+        <p class="meta">43% · fed by "RD instalment" transfers</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="feature flip">
+    <div class="copy">
+      <p class="eyebrow">Monthly Wrapped</p>
+      <h2>Your month, as a story worth sharing.</h2>
+      <p>Your top category, the café you kept going back to, your longest no-spend streak, the biggest day, the new places you tried. Save one card or all of them as images.</p>
+      <label class="toggle"><input type="checkbox" id="hide" /> Hide amounts</label>
+      <p style="margin-top:8px;font-size:.92rem">Swaps every money figure for counts and percentages, so you can post it without posting your bank balance.</p>
+    </div>
+    <div class="wrapped-cards" aria-label="Example Wrapped cards">
+      <div class="wcard" style="--accent:#6fc2a0"><span class="stripe"></span><p class="e">Your October wrapped</p><p class="b num" data-amount="₹38,420" data-hidden="212 transactions">₹38,420</p><p class="s" data-amount="spent across 212 transactions. 12% less than September." data-hidden="212 things logged. 12% less than September.">spent across 212 transactions. 12% less than September.</p><p class="f"><b>spence</b><span>October 2026</span></p></div>
+      <div class="wcard" style="--accent:#e3b65a"><span class="stripe"></span><p class="e">Your regular</p><p class="b">Blue Tokai</p><p class="s">You went 14 times.</p><p class="f"><b>spence</b><span>October 2026</span></p></div>
+      <div class="wcard" style="--accent:#6fc2a0"><span class="stripe"></span><p class="e">No-spend days</p><p class="b">9 days</p><p class="s">Longest streak: 4 days in a row.</p><p class="f"><b>spence</b><span>October 2026</span></p></div>
+      <div class="wcard" style="--accent:#e57c62"><span class="stripe"></span><p class="e">Biggest day</p><p class="b">Sat 18 Oct</p><p class="s" data-amount="₹6,240 across 5 purchases." data-hidden="5 purchases in one day.">₹6,240 across 5 purchases.</p><p class="f"><b>spence</b><span>October 2026</span></p></div>
+    </div>
+  </section>
+
+  <section class="feature">
+    <div class="copy">
+      <p class="eyebrow">Meet Sprig</p>
+      <h2>A small friend who never nags.</h2>
+      <p>Sprig lives on your dashboard. Its mood follows how the month is going, and once a day, at most, it mentions one thing worth knowing. It points at what you can do and never guilt-trips. Rename it, or hide it in a click.</p>
+    </div>
+    <div class="panel" aria-label="Sprig's moods and example nudges">
+      <div class="moods" id="moods"></div>
+      <div class="nudges">
+        <p class="nudge">Heads-up: Dining has used 84% of its budget, with 12 days to go.</p>
+        <p class="nudge">Netflix usually charges ₹649 tomorrow.</p>
+        <p class="nudge">3 no-spend days in a row. Nice rhythm.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="feature flip">
+    <div class="copy">
+      <p class="eyebrow">The dashboard</p>
+      <h2>The whole month in one look.</h2>
+      <p>A ribbon of where it went, daily and yearly trends, budgets per category, the subscriptions that keep renewing, your top merchants and the biggest purchases. Ask for a summary and the AI writes it from totals Spence already computed, so the numbers are exact.</p>
+      <ul class="ticks">
+        <li>Filter by category, account or type; search; bulk edit; export to CSV</li>
+        <li>Light and dark themes, keyboard shortcuts, works on a phone screen</li>
+      </ul>
+    </div>
+    <div class="panel" aria-label="Budgets example">
+      <p class="soft" style="font-size:.85rem;margin-bottom:12px">Budgets this month</p>
+      <div style="display:grid;gap:16px">
+        <div><div class="head" style="display:flex;justify-content:space-between"><span>Groceries</span><span class="num soft">₹7,900 / ₹10,000</span></div><div class="bar"><span style="width:79%;background:#3f8f5f"></span></div></div>
+        <div><div class="head" style="display:flex;justify-content:space-between"><span>Dining</span><span class="num soft">₹5,040 / ₹6,000</span></div><div class="bar"><span style="width:84%;background:#d9663b"></span></div></div>
+        <div><div class="head" style="display:flex;justify-content:space-between"><span>Transport</span><span class="num soft">₹1,620 / ₹4,000</span></div><div class="bar"><span style="width:40%;background:#b5832a"></span></div></div>
+        <div><div class="head" style="display:flex;justify-content:space-between"><span>Subscriptions</span><span class="num soft">₹1,297 / ₹1,500</span></div><div class="bar"><span style="width:86%;background:#3b6fd9"></span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-head">
+    <p class="eyebrow">How it works</p>
+    <h2>Three steps, then it's habit.</h2>
+  </div>
+  <ol class="steps">
+    <li><h3>Bring the month in</h3><p>Drop last month's statement, or quick-add as you go. Takes seconds.</p></li>
+    <li><h3>Glance and confirm</h3><p>Spence sorts everything. Fix what's off once and it remembers.</p></li>
+    <li><h3>See it, save it</h3><p>Watch the month on the dashboard, feed your pots, and share your Wrapped.</p></li>
+  </ol>
+
+  <div class="section-head" id="start">
+    <p class="eyebrow">Get started</p>
+    <h2>Free, open and yours.</h2>
+    <p>Spence is a small app you run on your own computer: a .NET API and a web app you open in your browser.</p>
+  </div>
+  <div class="start">
+    <div class="panel">
+      <h3 style="font-size:1.25rem">Run it</h3>
+      <p class="soft" style="margin-top:6px">Needs the .NET 11 SDK and Node 24+.</p>
+<pre><code># API
+cd SpenceAI.WebApi
+dotnet run          # http://localhost:5234
+
+# Web app, in a second terminal
+cd spence-ai-web
+npm install
+npm run dev         # http://localhost:5173</code></pre>
+    </div>
+    <div class="panel">
+      <h3 style="font-size:1.25rem">Pick your AI</h3>
+      <div class="ai">
+        <div><b>Ollama</b><span class="soft">Runs on your computer, fully offline. Nothing leaves your machine. Try <code>qwen2.5:7b</code>.</span></div>
+        <div><b>Gemini</b><span class="soft">Use your own API key. Fast and accurate on long statements.</span></div>
+        <div><b>OpenAI</b><span class="soft">Use your own API key.</span></div>
+      </div>
+      <p class="soft" style="margin-top:14px;font-size:.9rem">Your key is encrypted on your computer. Summaries only ever send totals, never your transactions.</p>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <p class="eyebrow">Questions</p>
+    <h2>Good to know</h2>
+  </div>
+  <div style="margin-top:28px">
+    <details><summary>Does Spence connect to my bank?</summary><p>No. You bring statements in yourself, as PDF, CSV or a photo. Spence never asks for a bank login and can't move money; savings pots track money, they don't hold it.</p></details>
+    <details><summary>Where is my data stored?</summary><p>In a single SQLite file in your user folder, with daily backups next to it. You can also copy each backup to a folder like OneDrive. Nothing is sent to us; there is no "us" server.</p></details>
+    <details><summary>What does the AI see?</summary><p>To read a statement, the statement's text goes to the AI you picked. With Ollama that never leaves your computer. Monthly summaries send only computed totals. Quick add sends only merchant names, and only when it can't work out the category itself.</p></details>
+    <details><summary>Which banks and currencies work?</summary><p>Any statement that lists transactions, in any currency. Spence handles day-first and month-first dates, Indian number formats like 1,20,000, and credits marked Cr.</p></details>
+  </div>
+
+  <div class="final">
+    <h2>Let's see where the month went.</h2>
+    <a class="btn" href="#start">Get started</a>
+  </div>
+
+  <footer>
+    <span>Spence · a private, local-first expense tracker · MIT licensed</span>
+    <span>Made for people who'd rather know.</span>
+  </footer>
+</main>
+
+<script>
+  // Sprig's five moods, drawn from the same shapes the app uses.
+  (function () {
+    const ink = 'var(--ink)';
+    const line = (d, w = 2.4) => `<path d="${d}" stroke="${ink}" stroke-width="${w}" stroke-linecap="round" fill="none"/>`;
+    const faces = {
+      Cheerful: line('M23 37 q3 -4 6 0') + line('M35 37 q3 -4 6 0') + `<path d="M26 44 q6 6 12 0 Z" fill="${ink}"/>`,
+      Content: `<circle cx="26" cy="38" r="2.4" fill="${ink}"/><circle cx="38" cy="38" r="2.4" fill="${ink}"/>` + line('M28 44.5 q4 3 8 0'),
+      Watchful: line('M22.5 32.5 l5 1.2', 2) + line('M41.5 32.5 l-5 1.2', 2) + `<circle cx="26" cy="38" r="2.4" fill="${ink}"/><circle cx="38" cy="38" r="2.4" fill="${ink}"/><circle cx="32" cy="46" r="2" stroke="${ink}" stroke-width="2" fill="none"/>`,
+      Proud: line('M23 37 q3 -4 6 0') + line('M35 37 q3 -4 6 0') + `<path d="M26 44 q6 6 12 0 Z" fill="${ink}"/>`,
+      Sleepy: line('M23 38 q3 2 6 0') + line('M35 38 q3 2 6 0') + line('M30 46 q2 1.4 4 0'),
+    };
+    const angle = { Cheerful: -8, Proud: -14, Content: 0, Watchful: 14, Sleepy: 38 };
+    const extra = {
+      Proud: '<g fill="var(--ochre)"><path d="M10 18 l1.6 3.4 3.4 1.6 -3.4 1.6 -1.6 3.4 -1.6 -3.4 -3.4 -1.6 3.4 -1.6Z"/><path d="M54 26 l1.1 2.4 2.4 1.1 -2.4 1.1 -1.1 2.4 -1.1 -2.4 -2.4 -1.1 2.4 -1.1Z"/></g>',
+      Sleepy: '<text x="50" y="22" font-size="10" font-weight="700" fill="var(--ink-faint)">z</text>',
+    };
+    document.getElementById('moods').innerHTML = Object.keys(faces).map((m) => `
+      <div class="mood"><svg viewBox="0 0 64 64" role="img" aria-label="Sprig, ${m.toLowerCase()}">
+        <g transform="rotate(${angle[m]} 32 20)"><path d="M32 21 C32 16 32 13 32 10" stroke="var(--pine)" stroke-width="2.6" stroke-linecap="round" fill="none"/><path d="M32 12 C26 4 18 7 18 11 C24 14 29 14 32 12Z" fill="var(--pine)"/><path d="M32 12 C37 3 46 5 46 9 C41 13 35 14 32 12Z" fill="var(--pine-strong)"/></g>
+        <ellipse cx="32" cy="40" rx="20" ry="18" fill="var(--pine-soft)" stroke="var(--pine)" stroke-width="2.4"/>
+        <ellipse cx="20.5" cy="44" rx="3.4" ry="2.2" fill="var(--ochre)" opacity="${m === 'Sleepy' ? .35 : .7}"/><ellipse cx="43.5" cy="44" rx="3.4" ry="2.2" fill="var(--ochre)" opacity="${m === 'Sleepy' ? .35 : .7}"/>
+        ${faces[m]}${extra[m] ?? ''}</svg>${m}</div>`).join('');
+  })();
+
+  // Wrapped: the "Hide amounts" switch swaps money for counts, like the app does.
+  document.getElementById('hide').addEventListener('change', (e) => {
+    document.querySelectorAll('[data-amount]').forEach((el) => {
+      el.textContent = e.target.checked ? el.dataset.hidden : el.dataset.amount;
+    });
+  });
+
+  // Hero quick add: type the line, then reveal the cards one by one.
+  (function () {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const text = document.getElementById('qa-text');
+    const cards = [...document.querySelectorAll('#qa-cards .card')];
+    const line = text.textContent;
+    const stops = [line.indexOf(',') , line.indexOf(',', line.indexOf(',') + 1), line.length];
+    function run() {
+      text.textContent = '';
+      cards.forEach((c) => c.classList.remove('show'));
+      let i = 0;
+      const tick = () => {
+        text.textContent = line.slice(0, ++i);
+        stops.forEach((s, k) => { if (i === s) cards[k].classList.add('show'); });
+        if (i < line.length) setTimeout(tick, 45 + Math.random() * 50);
+        else setTimeout(run, 4200);
+      };
+      setTimeout(tick, 600);
+    }
+    run();
+  })();
+</script>
+</body>
+</html>

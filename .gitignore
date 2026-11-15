@@ -40,9 +40,8 @@ ScaffoldingReadMe.txt
 .env
 .env.local
 
-# Local secrets (use appsettings.Development.example.json as a template)
-**/appsettings.Development.json
-!**/appsettings.Development.example.json
+# Machine-specific overrides (appsettings.json and appsettings.Development.json are tracked and hold no secrets)
+**/appsettings.Local.json
 
 # Others
 ~$*
@@ -79,9 +78,9 @@ DocumentLayout.json
 # SQLite database files
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 
-# Application settings (avoid committing sensitive configuration)
-appsettings.json
-**/appsettings.json
-!**/appsettings.example.json
-!**/appsettings.Development.example.json
+# Visual Studio
+.vs/
+*.csproj.user
