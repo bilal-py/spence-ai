@@ -1,6 +1,7 @@
 // Typed client for the Spence API. Shapes mirror the C# records in SpenceAI.WebApi/Endpoints and SpenceAI.Application.
 
-export const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:5234/api';
+// Dev talks to the API on :5234; a production build is served by the API itself, so it's same-origin.
+export const API_URL: string = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:5234/api' : '/api');
 
 /** Refund = money back for earlier spending (waiver, cashback, return); it reduces spending in its category. */
 export type TransactionType = 'Expense' | 'Income' | 'Transfer' | 'Refund';

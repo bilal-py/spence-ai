@@ -1,0 +1,87 @@
+name: Release
+
+# Push a tag like v0.1.0 to build the downloadable app for every platform and publish a GitHub Release.
+# Run it by hand (workflow_dispatch) to get the builds as workflow artifacts without making a release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spence-ai-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: spence-ai-web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: spence-ai-web/dist
+
+  app:
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: win-x64, os: windows-latest }
+          - { rid: linux-x64, os: ubuntu-latest }
+          - { rid: osx-arm64, os: macos-latest }
+          - { rid: osx-x64, os: macos-latest }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 11.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: spence-ai-web/dist
+      - name: Test
+        if: matrix.rid == 'linux-x64'
+        run: dotnet test SpenceAI.slnx
+      - name: Package
+        shell: bash
+        env:
+          SKIP_WEB_BUILD: "1"
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$GITHUB_REF_TYPE" == "tag" ]] || version="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+          bash packaging/publish.sh "${{ matrix.rid }}" "$version"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spence-${{ matrix.rid }}
+          path: |
+            artifacts/*.zip
+            artifacts/*.tar.gz
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: spence-*
+          merge-multiple: true
+          path: dist
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
