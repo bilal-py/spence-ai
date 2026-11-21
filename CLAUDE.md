@@ -25,11 +25,11 @@ npm run build        # tsc -b && vite build
 
 ```bash
 # Downloadable app, from repo root (macOS builds must run on a Mac)
-bash packaging/publish.sh win-x64 0.1.0      # → artifacts/Spence-0.1.0-win-x64.zip
-git tag v0.1.0 && git push origin v0.1.0      # CI builds win/linux/osx-arm64/osx-x64 → GitHub Release
+bash packaging/publish.sh win-x64 0.2.0      # → artifacts/Spence-win-x64.zip (names carry no version)
+git tag v0.2.0 && git push origin v0.2.0      # CI builds win/linux/osx-arm64/osx-x64 → GitHub Release
 ```
 
-**Desktop mode:** when `appsettings.Desktop.json` (shipped from `packaging/`) sits next to the executable, `Program.cs` uses the app folder as content root, listens on `127.0.0.1:5234` and opens the browser. A second launch reopens the running copy (`DesktopHost.cs`). Whenever `wwwroot/index.html` exists, the API serves the web app with an SPA fallback, and a production web build calls `/api` on the same origin. `dotnet run` is unaffected. **Old `.spence` backups must always restore** (it's how users move between versions and hosts).
+**Desktop mode** (`SpenceAI.WebApi/Desktop/`): when `appsettings.Desktop.json` (shipped from `packaging/`) sits next to the executable, `Program.cs` uses the app folder as content root, listens on `127.0.0.1:5234` and opens the browser. A second launch reopens the running copy. It also writes daily logs to `<data>/logs` (`FileLoggerProvider`), and a startup failure gets a message box plus `logs/crash.log`. `UpdateChecker` asks GitHub for the latest release once a day (`GET /api/app/info` → Settings → About). On Windows the release build is `WinExe` (no console) with a Win32 tray icon (`WindowsTray.cs`, raw P/Invoke, no WinForms) and "Start with Windows" (`Autostart.cs`, HKCU Run, starts with `--Desktop:OpenBrowser=false`). macOS/Linux keep the terminal. Whenever `wwwroot/index.html` exists, the API serves the web app with an SPA fallback, and a production web build calls `/api` on the same origin. `dotnet run` is unaffected. **Old `.spence` backups must always restore** (it's how users move between versions and hosts).
 
 Migrations run automatically on API startup. Starter categories are seeded when the DB has none.
 

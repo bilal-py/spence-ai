@@ -166,6 +166,15 @@ export interface BackupFile {
   sizeBytes: number;
 }
 
+/** GET /api/app/info. `desktop` is the downloadable app (API and browser on one computer). */
+export interface AppInfo {
+  version: string;
+  desktop: boolean;
+  dataDirectory: string;
+  latestVersion: string | null;
+  updateUrl: string | null;
+}
+
 export interface BackupStatus {
   directory: string;
   autoBackup: boolean;
@@ -718,6 +727,10 @@ export const api = {
     update: (input: SettingsInput) => request<Settings>('/settings', json('PUT', input)),
     test: (input: SettingsInput) => request<{ reply: string }>('/settings/test', json('POST', input)),
     ollamaModels: (url: string) => request<string[]>(`/settings/ollama-models${qs({ url })}`),
+  },
+  app: {
+    info: () => request<AppInfo>('/app/info'),
+    openDataFolder: () => request<void>('/app/open-data-folder', { method: 'POST' }),
   },
   backup: {
     status: () => request<BackupStatus>('/backup'),

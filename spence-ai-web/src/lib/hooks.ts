@@ -17,6 +17,7 @@ export const keys = {
   pet: ['pet'] as const,
   bills: ['bills'] as const,
   quests: ['quests'] as const,
+  app: ['app'] as const,
 };
 
 export function useSettings() {

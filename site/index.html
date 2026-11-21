@@ -304,6 +304,44 @@
   @media (max-width: 560px) { .final { padding: 36px 22px; } }
   footer { padding: 40px 0 56px; font-size: 0.88rem; color: var(--ink-faint); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 
+  /* Download */
+  .dl { margin-top: 36px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 900px) { .dl { grid-template-columns: 1fr; } }
+  .os-tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 11px; background: var(--sunken); }
+  .os-tabs button { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-soft); font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+  .os-tabs button svg { width: 16px; height: 16px; }
+  .os-tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+  .os-pane { margin-top: 22px; }
+  .os-pane[hidden] { display: none; }
+  .os-pane h3 { font-size: 1.5rem; }
+  .dl-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .dl-btns .btn { height: 52px; padding: 0 22px; font-size: 1.02rem; }
+  .dl-btns .btn svg { width: 18px; height: 18px; }
+  .dl-meta { margin-top: 10px; font-size: .86rem; color: var(--ink-faint); }
+  .detected { font-size: .78rem; font-weight: 600; color: var(--pine); background: var(--pine-soft); border-radius: 999px; padding: 2px 9px; margin-left: 8px; vertical-align: middle; font-family: var(--sans); letter-spacing: 0; }
+  .install { list-style: none; counter-reset: s; padding: 0; margin: 22px 0 0; display: grid; gap: 14px; }
+  .install li { counter-increment: s; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; }
+  .install li::before { content: counter(s); width: 30px; height: 30px; border-radius: 50%; background: var(--pine-soft); color: var(--pine-strong); display: grid; place-items: center; font-weight: 700; font-size: .9rem; transition: background .2s, color .2s; }
+  .install li.done::before { content: '\2713'; background: var(--pine); color: var(--on-pine); }
+  .install b { display: block; }
+  .install .soft { font-size: .93rem; }
+  .cmd { display: flex; align-items: center; gap: 8px; margin-top: 8px; background: var(--sunken); border-radius: 9px; padding: 6px 6px 6px 12px; font: .84rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; }
+  .copy { flex: none; }
+  .smartscreen { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: .84rem; max-width: 340px; }
+  .smartscreen .ss-bar { background: #2b5fb8; color: #fff; padding: 8px 12px; font-weight: 600; }
+  .smartscreen .body { padding: 10px 12px; background: var(--surface); }
+  .smartscreen .body > button { margin-top: 8px; border: 0; background: none; padding: 0; color: var(--pine); text-decoration: underline; cursor: pointer; font-size: .84rem; }
+  .smartscreen .run { display: none; margin-top: 10px; justify-content: flex-end; gap: 8px; }
+  .smartscreen.more .run { display: flex; }
+  .smartscreen .run button { border: 1px solid var(--line); border-radius: 4px; padding: 3px 12px; background: var(--surface); font-size: .84rem; cursor: pointer; }
+  .smartscreen .run button.go { border-color: #2b5fb8; }
+  .on-phone { display: none; margin-top: 18px; }
+  .is-phone .on-phone { display: block; }
+  .src summary { font-size: 1rem; }
+  .src pre { margin-top: 12px; }
+  .unsigned { font-size: .9rem; }
+
   #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
   .bounce { animation: bounce 1.6s ease-in-out infinite; }
   @keyframes bounce { 50% { transform: translateY(-2px); } }
@@ -332,7 +370,7 @@
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>
       </button>
-      <a class="btn btn-primary" href="#start" style="height:40px">Get Spence</a>
+      <a class="btn btn-primary" href="#start" style="height:40px">Download</a>
     </div>
   </nav>
 
@@ -341,10 +379,10 @@
       <h1>Know where the <em>month</em> went.</h1>
       <p class="lede">Spence reads your bank statements, sorts every transaction, keeps an eye on your bills and shows you the month at a glance. It runs on your own computer, so your money stays your business.</p>
       <div class="ctas">
-        <a class="btn btn-primary" href="#start">Get started, it's free</a>
+        <a class="btn btn-primary" href="#start" data-os-label>Download, it's free</a>
         <a class="btn btn-ghost" href="#try">Try quick add <kbd>N</kbd></a>
       </div>
-      <p class="fine">No sign-up. No bank login. No ads. Works with a local AI or your own Gemini or OpenAI key.</p>
+      <p class="fine">For Windows, macOS and Linux. No sign-up, no bank login, no ads. Works with a local AI or your own Gemini or OpenAI key.</p>
     </div>
 
     <div class="mock" id="mock" aria-label="A preview of the Spence dashboard and quick add">
@@ -624,12 +662,84 @@
   <div class="section-head reveal" id="start">
     <p class="eyebrow">Get started</p>
     <h2>Free, open and yours.</h2>
-    <p>Spence is a small app you run on your own computer: a .NET API and a web app you open in your browser.</p>
+    <p>Download one folder, open Spence, and it starts in your browser. No installer, no account, nothing to set up first.</p>
   </div>
-  <div class="start reveal">
-    <div class="panel">
-      <h3 style="font-size:1.25rem">Run it</h3>
-      <p class="soft" style="margin-top:6px">Needs the .NET 11 SDK and Node 24+.</p>
+
+  <div class="dl reveal">
+    <div class="panel" id="download">
+      <div class="os-tabs" role="tablist" aria-label="Choose your computer">
+        <button type="button" role="tab" id="tab-win" aria-controls="pane-win" aria-selected="true"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3zm8.5-1.2L21 3v8.5h-9.5zM3 12.5h7.5v7.1L3 18.5zm8.5 0H21V21l-9.5-1.3z"/></svg>Windows</button>
+        <button type="button" role="tab" id="tab-mac" aria-controls="pane-mac" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.5 2-3.6 2.1-3.7-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.7.9-.8 0-2-.9-3.2-.9-1.7 0-3.2 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8s2.1-1.2 2.9-2.4c.9-1.3 1.3-2.6 1.3-2.7 0 0-2.4-.9-2.3-3.8zM14 5.2c.7-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.6 2.8-1.4z"/></svg>macOS</button>
+        <button type="button" role="tab" id="tab-linux" aria-controls="pane-linux" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 17 6-5-6-5M12 19h8"/></svg>Linux</button>
+      </div>
+
+      <div class="os-pane" id="pane-win" role="tabpanel" aria-labelledby="tab-win">
+        <h3>Spence for Windows</h3>
+        <div class="dl-btns">
+          <a class="btn btn-primary" data-asset="win-x64.zip" href="https://github.com/bilal-py/spence-ai/releases/download/v0.1.0/Spence-0.1.0-win-x64.zip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>Download for Windows</a>
+        </div>
+        <p class="dl-meta"><span data-meta="win-x64.zip">v0.1.0 · 53 MB</span> · Windows 10 and 11, 64-bit</p>
+        <ol class="install">
+          <li><span><b>Unzip it</b><span class="soft">Right-click the download, choose <i>Extract All</i>, and put the folder anywhere you like.</span></span></li>
+          <li><span><b>Open <code>Spence.exe</code></b><span class="soft">The first time, Windows may warn you because the app isn't signed yet. It looks like this:</span>
+            <div class="smartscreen" id="smartscreen">
+              <div class="ss-bar">Windows protected your PC</div>
+              <div class="body">Microsoft Defender SmartScreen prevented an unrecognized app from starting.<br /><button type="button">More info</button>
+                <div class="run"><button type="button" class="go">Run anyway</button><button type="button" class="nope">Don't run</button></div>
+              </div>
+            </div>
+            <span class="soft" style="display:block;margin-top:6px">Click <i>More info</i>, then <i>Run anyway</i>. Try it here.</span></span></li>
+          <li><span><b>Your browser opens Spence</b><span class="soft">Spence waits in the tray by the clock. Click the icon to open it again, or right-click to quit, open your data folder, or start it with Windows.</span></span></li>
+        </ol>
+      </div>
+
+      <div class="os-pane" id="pane-mac" role="tabpanel" aria-labelledby="tab-mac" hidden>
+        <h3>Spence for macOS</h3>
+        <div class="dl-btns">
+          <a class="btn btn-primary" data-asset="osx-arm64.tar.gz" href="https://github.com/bilal-py/spence-ai/releases/download/v0.1.0/Spence-0.1.0-osx-arm64.tar.gz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>Apple Silicon</a>
+          <a class="btn btn-ghost" data-asset="osx-x64.tar.gz" href="https://github.com/bilal-py/spence-ai/releases/download/v0.1.0/Spence-0.1.0-osx-x64.tar.gz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>Intel</a>
+        </div>
+        <p class="dl-meta"><span data-meta="osx-arm64.tar.gz">v0.1.0 · 49 MB</span> · Not sure which? Apple menu → <i>About This Mac</i>. "Chip: Apple M…" means Apple Silicon. "Processor: Intel" means Intel.</p>
+        <ol class="install">
+          <li><span><b>Unpack it</b><span class="soft">Double-click the download in Finder. You get a <code>Spence</code> folder.</span></span></li>
+          <li><span><b>Let macOS open it (first time only)</b><span class="soft">Apple hasn't notarized the app yet, so macOS blocks it. Open Terminal, type <code>cd</code> and a space, drag the folder into the window, press Return, then run:</span>
+            <div class="cmd"><code>xattr -dr com.apple.quarantine .</code><button class="btn btn-ghost btn-sm copy" type="button" data-copy="xattr -dr com.apple.quarantine .">Copy</button></div></span></li>
+          <li><span><b>Double-click <code>Spence</code></b><span class="soft">A Terminal window starts it and your browser opens. Keep that window open while you use it.</span></span></li>
+        </ol>
+      </div>
+
+      <div class="os-pane" id="pane-linux" role="tabpanel" aria-labelledby="tab-linux" hidden>
+        <h3>Spence for Linux</h3>
+        <div class="dl-btns">
+          <a class="btn btn-primary" data-asset="linux-x64.tar.gz" href="https://github.com/bilal-py/spence-ai/releases/download/v0.1.0/Spence-0.1.0-linux-x64.tar.gz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>Download for Linux</a>
+        </div>
+        <p class="dl-meta"><span data-meta="linux-x64.tar.gz">v0.1.0 · 52 MB</span> · x64, glibc distros (Ubuntu, Fedora, Debian…)</p>
+        <ol class="install">
+          <li><span><b>Unpack and run</b>
+            <div class="cmd"><code>tar -xzf Spence-*linux-x64.tar.gz &amp;&amp; cd Spence*/ &amp;&amp; ./Spence</code><button class="btn btn-ghost btn-sm copy" type="button" data-copy="tar -xzf Spence-*linux-x64.tar.gz &amp;&amp; cd Spence*/ &amp;&amp; ./Spence">Copy</button></div></span></li>
+          <li><span><b>Your browser opens Spence</b><span class="soft">It runs at <code>http://127.0.0.1:5234</code>. Press Ctrl+C in the terminal to quit.</span></span></li>
+        </ol>
+      </div>
+
+      <div class="note on-phone"><b>You're on a phone.</b> Spence runs on a computer for now. Send yourself this link and download it there. <button class="btn btn-ghost btn-sm" type="button" id="share-link" style="margin-left:6px">Send link</button></div>
+      <p class="dl-meta" style="margin-top:20px"><a href="https://github.com/bilal-py/spence-ai/releases/latest">All downloads and release notes</a> · <a href="https://github.com/bilal-py/spence-ai/releases/download/v0.1.0/SHA256SUMS.txt">SHA-256 checksums</a></p>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h3 style="font-size:1.25rem">Then pick your AI</h3>
+        <p class="soft" style="margin-top:6px;font-size:.93rem">In Spence, open <b>Settings</b> and choose one. You can switch any time.</p>
+        <div class="ai">
+          <div><b>Ollama</b><span class="soft">Runs on your computer, fully offline. Nothing leaves your machine. Try <code>qwen2.5:7b</code>.</span></div>
+          <div><b>Gemini</b><span class="soft">Use your own API key. Fast and accurate on long statements.</span></div>
+          <div><b>OpenAI</b><span class="soft">Use your own API key.</span></div>
+        </div>
+        <p class="soft" style="margin-top:14px;font-size:.9rem">Your key is encrypted on your computer. Summaries only ever send totals, never your transactions.</p>
+      </div>
+      <p class="note unsigned"><b>Why the warning?</b> Signing an app costs money every year, and Spence is a free side project, so Windows and macOS don't recognise it yet. Everything it does is in the <a href="https://github.com/bilal-py/spence-ai">open-source code</a>, and GitHub builds each release from that code.</p>
+      <details class="src" style="margin-top:18px">
+        <summary>Developer? Build it from source</summary>
+        <p>You need the .NET 11 SDK and Node 24+. The code is on <a href="https://github.com/bilal-py/spence-ai">GitHub</a> under the MIT license.</p>
 <pre><code># API
 cd SpenceAI.WebApi
 dotnet run          # http://localhost:5234
@@ -638,18 +748,9 @@ dotnet run          # http://localhost:5234
 cd spence-ai-web
 npm install
 npm run dev         # http://localhost:5173</code></pre>
-    </div>
-    <div class="panel">
-      <h3 style="font-size:1.25rem">Pick your AI</h3>
-      <div class="ai">
-        <div><b>Ollama</b><span class="soft">Runs on your computer, fully offline. Nothing leaves your machine. Try <code>qwen2.5:7b</code>.</span></div>
-        <div><b>Gemini</b><span class="soft">Use your own API key. Fast and accurate on long statements.</span></div>
-        <div><b>OpenAI</b><span class="soft">Use your own API key.</span></div>
-      </div>
-      <p class="soft" style="margin-top:14px;font-size:.9rem">Your key is encrypted on your computer. Summaries only ever send totals, never your transactions.</p>
+      </details>
     </div>
   </div>
-  <p class="note reveal"><b>Not a developer?</b> A one-click installer for Windows is planned: download, double-click, and Spence opens in your browser. Until then, setup needs the steps above.</p>
 
   <div class="section-head reveal">
     <p class="eyebrow">Questions</p>
@@ -660,16 +761,19 @@ npm run dev         # http://localhost:5173</code></pre>
     <details><summary>Where is my data stored?</summary><p>In a single SQLite file in your user folder, with daily backups next to it. You can also copy each backup to a folder like OneDrive. Nothing is sent to us; there is no "us" server.</p></details>
     <details><summary>What does the AI see?</summary><p>To read a statement, the statement's text goes to the AI you picked. With Ollama that never leaves your computer. Monthly summaries send only computed totals. Ask looks up only what your question needs (at most 25 rows at a time). Quick add sends only merchant names, and only when it can't work out the category itself.</p></details>
     <details><summary>Will it remind me about bills?</summary><p>Yes, three ways: on the dashboard, from Sprig, and as browser notifications while Spence is open. Download the calendar file and your phone reminds you too, even when Spence is closed.</p></details>
+    <details><summary>How do I update?</summary><p>Spence lets you know when a new version is out: in Settings, and in the tray on Windows. Quit Spence, download the new version and replace the old folder. Your data lives in your user folder, not in the app folder, so nothing is lost, and Spence backs up the database before an update changes it.</p></details>
+    <details><summary>Does it work on my phone?</summary><p>Not yet. Spence runs on your computer and only listens to that computer, so nothing is reachable from the internet. Its pages already fit a phone-sized screen, and a phone version is being tried with a small group first.</p></details>
+    <details><summary>Is it really free?</summary><p>Yes. No trial, no ads, no account. The code is open source under the MIT license.</p></details>
     <details><summary>Which banks and currencies work?</summary><p>Any statement that lists transactions, in any currency. Spence handles day-first and month-first dates, Indian number formats like 1,20,000, and credits marked Cr.</p></details>
   </div>
 
   <div class="final reveal">
     <h2>Let's see where the month went.</h2>
-    <a class="btn" href="#start">Get started</a>
+    <a class="btn" href="#start" data-os-label>Download Spence</a>
   </div>
 
   <footer>
-    <span>Spence · a private, local-first expense tracker · MIT licensed</span>
+    <span>Spence · a private, local-first expense tracker · MIT licensed · <a href="https://github.com/bilal-py/spence-ai">Source on GitHub</a> · <a href="https://github.com/bilal-py/spence-ai/releases">All releases</a></span>
     <span>Made for people who'd rather know.</span>
   </footer>
 </main>
@@ -1081,6 +1185,106 @@ npm run dev         # http://localhost:5173</code></pre>
       c.addEventListener('pointerleave', () => { c.style.transform = ''; });
     });
   }
+
+  // ---------- Download: pick the visitor's OS, fill in the latest release, small wins ----------
+  (function () {
+    const ua = navigator.userAgent;
+    const uad = navigator.userAgentData;
+    const plat = (uad && uad.platform) || navigator.platform || '';
+    const phone = !!(uad && uad.mobile) || /Android|iPhone|iPad|iPod/i.test(ua) || (/Mac/i.test(plat) && navigator.maxTouchPoints > 1);
+    const os = /Win/i.test(plat) ? 'win' : /Mac|iPhone|iPad/i.test(plat + ua) ? 'mac' : /Linux|X11|CrOS/i.test(plat) && !/Android/i.test(ua) ? 'linux' : 'win';
+    const names = { win: 'Windows', mac: 'Mac', linux: 'Linux' };
+    if (phone) document.documentElement.classList.add('is-phone');
+
+    const tabs = $$('.os-tabs [role=tab]');
+    function select(key, focus) {
+      tabs.forEach((t) => {
+        const on = t.id === 'tab-' + key;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+        $('#' + t.getAttribute('aria-controls')).hidden = !on;
+        if (on && focus) t.focus();
+      });
+    }
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => select(t.id.slice(4)));
+      t.addEventListener('keydown', (e) => {
+        const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (d) { e.preventDefault(); select(tabs[(i + d + tabs.length) % tabs.length].id.slice(4), true); }
+      });
+    });
+    select(os);
+    if (!phone) {
+      $('#pane-' + os + ' h3').append(el('span', 'detected', 'Your computer'));
+      $$('[data-os-label]').forEach((a) => { a.textContent = a.textContent.replace(/^Download/, 'Download for ' + names[os]); });
+    }
+
+    // Chrome and Edge can tell Intel from Apple Silicon. Otherwise Apple Silicon stays first.
+    if (os === 'mac' && uad && uad.getHighEntropyValues) {
+      uad.getHighEntropyValues(['architecture']).then((v) => {
+        if (v.architecture !== 'x86') return;
+        const [arm, intel] = $$('#pane-mac .dl-btns .btn');
+        arm.classList.replace('btn-primary', 'btn-ghost');
+        intel.classList.replace('btn-ghost', 'btn-primary');
+        intel.parentNode.prepend(intel);
+      }).catch(() => {});
+    }
+
+    // Point the buttons at the newest release. The links in the HTML already work (v0.1.0) if this fails.
+    const mb = (b) => Math.round(b / 1048576) + ' MB';
+    const find = (rel, suffix) => rel.assets.find((x) => x.name.endsWith('-' + suffix));
+    const apply = (rel) => {
+      if (!rel || !rel.assets) return;
+      $$('[data-asset]').forEach((a) => { const x = find(rel, a.dataset.asset); if (x) a.href = x.browser_download_url; });
+      $$('[data-meta]').forEach((m) => { const x = find(rel, m.dataset.meta); if (x) m.textContent = rel.tag_name + ' · ' + mb(x.size); });
+    };
+    let cached = null;
+    try { cached = JSON.parse(sessionStorage.getItem('spence-release') || 'null'); } catch {}
+    if (cached) apply(cached);
+    else if (window.fetch) {
+      fetch('https://api.github.com/repos/bilal-py/spence-ai/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((rel) => {
+          if (!rel || !rel.assets) return;
+          const slim = { tag_name: rel.tag_name, assets: rel.assets.map((a) => ({ name: a.name, size: a.size, browser_download_url: a.browser_download_url })) };
+          try { sessionStorage.setItem('spence-release', JSON.stringify(slim)); } catch {}
+          apply(slim);
+        })
+        .catch(() => {});
+    }
+
+    // A download is a small win: confetti, step 1 gets a tick, and the next step is spelled out.
+    $$('[data-asset]').forEach((a) => a.addEventListener('click', () => {
+      confetti(a);
+      const pane = a.closest('.os-pane');
+      const first = $('.install li', pane);
+      if (first) first.classList.add('done');
+      const meta = $('.dl-meta', pane);
+      if (!meta.dataset.thanks) {
+        meta.dataset.thanks = '1';
+        meta.prepend(el('b', null, pane.id === 'pane-win' ? 'Downloading. Next, unzip it. ' : 'Downloading. Next, unpack it. '));
+      }
+    }));
+
+    // The SmartScreen look-alike: "More info" shows "Run anyway", which celebrates.
+    const ss = $('#smartscreen');
+    $('.body > button', ss).addEventListener('click', () => ss.classList.add('more'));
+    $('.run .go', ss).addEventListener('click', (e) => { confetti(e.currentTarget, true); e.currentTarget.textContent = 'That\'s it!'; $$('#pane-win .install li')[1].classList.add('done'); });
+    $('.run .nope', ss).addEventListener('click', () => ss.classList.remove('more'));
+
+    const copy = (btn, text) => {
+      const label = btn.textContent;
+      const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = label; }, 1600); };
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => {});
+    };
+    $$('.copy').forEach((b) => b.addEventListener('click', () => copy(b, b.dataset.copy)));
+    const share = $('#share-link');
+    share.addEventListener('click', () => {
+      const url = location.href.split('#')[0] + '#start';
+      if (navigator.share) navigator.share({ title: 'Spence', text: 'Download Spence on my computer', url }).catch(() => {});
+      else copy(share, url);
+    });
+  })();
 
   // ---------- Safe to spend ----------
   const SAFE = 9840, DAYS_LEFT = 15;
