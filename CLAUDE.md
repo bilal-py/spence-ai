@@ -23,6 +23,14 @@ npm run lint
 npm run build        # tsc -b && vite build
 ```
 
+```bash
+# Downloadable app, from repo root (macOS builds must run on a Mac)
+bash packaging/publish.sh win-x64 0.1.0      # → artifacts/Spence-0.1.0-win-x64.zip
+git tag v0.1.0 && git push origin v0.1.0      # CI builds win/linux/osx-arm64/osx-x64 → GitHub Release
+```
+
+**Desktop mode:** when `appsettings.Desktop.json` (shipped from `packaging/`) sits next to the executable, `Program.cs` uses the app folder as content root, listens on `127.0.0.1:5234` and opens the browser. A second launch reopens the running copy (`DesktopHost.cs`). Whenever `wwwroot/index.html` exists, the API serves the web app with an SPA fallback, and a production web build calls `/api` on the same origin. `dotnet run` is unaffected. **Old `.spence` backups must always restore** (it's how users move between versions and hosts).
+
 Migrations run automatically on API startup. Starter categories are seeded when the DB has none.
 
 ## Architecture

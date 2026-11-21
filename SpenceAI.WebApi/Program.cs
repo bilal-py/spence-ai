@@ -7,10 +7,28 @@ using SpenceAI.Application.Imports;
 using SpenceAI.Application.Settings;
 using SpenceAI.Infrastructure;
 using SpenceAI.Infrastructure.Data;
+using SpenceAI.WebApi;
 using SpenceAI.WebApi.Endpoints;
 
-var builder = WebApplication.CreateBuilder(args);
+// Release builds ship appsettings.Desktop.json next to the executable (see packaging/). Its presence turns on desktop
+// mode: content root = the app folder (double-clicking on macOS/Linux starts in the home folder), and the browser opens.
+var desktop = DesktopHost.IsDesktop();
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = desktop ? AppContext.BaseDirectory : null,
+});
+if (desktop)
+{
+    builder.Configuration.AddJsonFile("appsettings.Desktop.json", optional: false, reloadOnChange: false);
+}
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
+// A second launch just reopens the browser on the copy that's already running.
+if (desktop && await DesktopHost.TryReuseRunningAsync(builder.Configuration))
+{
+    return;
+}
 
 builder.Services.AddSpenceAi(builder.Configuration);
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -65,6 +83,14 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 
+// The built web app (wwwroot) is served by the API in release builds, so the API calls are same-origin.
+var hasWebApp = File.Exists(Path.Combine(app.Environment.WebRootPath ?? "", "index.html"));
+if (hasWebApp)
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+}
+
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 app.MapTransactionEndpoints();
 app.MapCategoryEndpoints();
@@ -74,5 +100,16 @@ app.MapSavingsEndpoints();
 app.MapBillEndpoints();
 app.MapAppEndpoints();
 app.MapBackupEndpoints();
+
+if (hasWebApp)
+{
+    app.MapFallback("/api/{**rest}", () => Results.NotFound());
+    app.MapFallbackToFile("index.html");
+}
+
+if (desktop)
+{
+    DesktopHost.OpenBrowserWhenStarted(app);
+}
 
 app.Run();
