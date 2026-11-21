@@ -7,7 +7,7 @@ using SpenceAI.Application.Imports;
 using SpenceAI.Application.Settings;
 using SpenceAI.Infrastructure;
 using SpenceAI.Infrastructure.Data;
-using SpenceAI.WebApi;
+using SpenceAI.WebApi.Desktop;
 using SpenceAI.WebApi.Endpoints;
 
 // Release builds ship appsettings.Desktop.json next to the executable (see packaging/). Its presence turns on desktop
@@ -28,6 +28,11 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
 if (desktop && await DesktopHost.TryReuseRunningAsync(builder.Configuration))
 {
     return;
+}
+
+if (desktop)
+{
+    DesktopHost.Configure(builder); // Log file, a readable message if startup fails, update checks.
 }
 
 builder.Services.AddSpenceAi(builder.Configuration);
@@ -100,6 +105,7 @@ app.MapSavingsEndpoints();
 app.MapBillEndpoints();
 app.MapAppEndpoints();
 app.MapBackupEndpoints();
+app.MapDesktopEndpoints(desktop);
 
 if (hasWebApp)
 {
@@ -109,7 +115,7 @@ if (hasWebApp)
 
 if (desktop)
 {
-    DesktopHost.OpenBrowserWhenStarted(app);
+    DesktopHost.Start(app); // Opens the browser and, on Windows, the tray icon.
 }
 
 app.Run();

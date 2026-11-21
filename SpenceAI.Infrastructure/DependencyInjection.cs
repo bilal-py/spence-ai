@@ -18,11 +18,8 @@ namespace SpenceAI.Infrastructure;
 
 public static class DependencyInjection
 {
-    /// <summary>
-    /// Local-first storage: everything (SQLite DB, encryption keys, pending uploads) lives in one data directory.
-    /// Defaults to %LOCALAPPDATA%/SpenceAI; override with the "Storage:DataDirectory" setting.
-    /// </summary>
-    public static IServiceCollection AddSpenceAi(this IServiceCollection services, IConfiguration config)
+    /// <summary>"Storage:DataDirectory", or %LOCALAPPDATA%/SpenceAI (macOS: ~/Library/Application Support, Linux: ~/.local/share).</summary>
+    public static string ResolveDataDirectory(IConfiguration config)
     {
         var dataDir = config["Storage:DataDirectory"];
         if (string.IsNullOrWhiteSpace(dataDir))
@@ -30,7 +27,16 @@ public static class DependencyInjection
             dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SpenceAI");
         }
 
-        var storage = new StorageOptions { DataDirectory = Path.GetFullPath(dataDir) };
+        return Path.GetFullPath(dataDir);
+    }
+
+    /// <summary>
+    /// Local-first storage: everything (SQLite DB, encryption keys, pending uploads) lives in one data directory.
+    /// Defaults to %LOCALAPPDATA%/SpenceAI; override with the "Storage:DataDirectory" setting.
+    /// </summary>
+    public static IServiceCollection AddSpenceAi(this IServiceCollection services, IConfiguration config)
+    {
+        var storage = new StorageOptions { DataDirectory = ResolveDataDirectory(config) };
         Directory.CreateDirectory(storage.DataDirectory);
         services.AddSingleton(storage);
 

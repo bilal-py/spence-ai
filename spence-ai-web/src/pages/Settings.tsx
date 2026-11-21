@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import { Check, Cloud, Cpu, Download } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
+import { AboutSection } from '../components/AboutSection';
 import { AccountsSection } from '../components/AccountsSection';
 import { BackupSection } from '../components/BackupSection';
 import { PetSection } from '../components/Pet';
@@ -55,6 +56,9 @@ export default function Settings() {
       </div>
       <div className="mt-12">
         <BackupSection />
+      </div>
+      <div className="mt-12">
+        <AboutSection />
       </div>
     </>
   );

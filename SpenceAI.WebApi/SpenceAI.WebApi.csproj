@@ -5,6 +5,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>spence-ai-webapi-dev</UserSecretsId>
+    <ApplicationIcon>spence.ico</ApplicationIcon>
+    <Product>Spence</Product>
+  </PropertyGroup>
+
+  <!-- packaging/publish.sh sets SpenceDesktop=true: the Windows build gets no console window (the tray icon replaces it). -->
+  <PropertyGroup Condition="'$(SpenceDesktop)' == 'true' And $(RuntimeIdentifier.StartsWith('win'))">
+    <OutputType>WinExe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
