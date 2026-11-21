@@ -43,13 +43,20 @@ cp "$root/LICENSE" "$out/LICENSE.txt"
 rm -rf "$out/wwwroot"
 cp -r "$root/spence-ai-web/dist" "$out/wwwroot"
 
+# Archive from inside the stage folder with a relative destination: Git Bash paths like /d/a/... mean nothing to
+# PowerShell (the fallback on Windows runners, which have no zip), but ../file works for both.
 cd "$stage"
 if [[ "$rid" == win-* ]]; then
-  archive="$root/artifacts/$name.zip"
-  rm -f "$archive"
-  if command -v zip >/dev/null; then zip -qr "$archive" Spence; else powershell -NoProfile -Command "Compress-Archive -Path 'Spence' -DestinationPath '$archive'"; fi
+  file="$name.zip"
+  rm -f "../$file"
+  if [ "${FORCE_POWERSHELL_ZIP:-}" != "1" ] && command -v zip >/dev/null; then
+    zip -qr "../$file" Spence
+  else
+    powershell -NoProfile -NonInteractive -Command "Compress-Archive -Path 'Spence' -DestinationPath '../$file'; if (-not \$?) { exit 1 }"
+  fi
 else
-  archive="$root/artifacts/$name.tar.gz"
-  tar -czf "$archive" Spence
+  file="$name.tar.gz"
+  tar -czf "../$file" Spence
 fi
-echo "Built ${archive#$root/}"
+[ -f "$root/artifacts/$file" ] || { echo "Archive was not created: artifacts/$file" >&2; exit 1; }
+echo "Built artifacts/$file"
